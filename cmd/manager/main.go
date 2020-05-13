@@ -8,14 +8,6 @@ import (
 	"runtime"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	"k8s.io/client-go/kubernetes/scheme"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"k8s.io/client-go/rest"
-
-	operatorScheme "github.com/litmuschaos/chaos-operator/pkg/client/clientset/versioned/scheme"
-	"github.com/litmuschaos/chaos-scheduler/pkg/apis"
-	"github.com/litmuschaos/chaos-scheduler/pkg/controller"
-
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
@@ -26,10 +18,17 @@ import (
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+
+	operatorScheme "github.com/litmuschaos/chaos-operator/pkg/client/clientset/versioned/scheme"
+	"github.com/litmuschaos/chaos-scheduler/pkg/apis"
+	"github.com/litmuschaos/chaos-scheduler/pkg/controller"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -38,7 +37,7 @@ var (
 	metricsPort         int32 = 8383
 	operatorMetricsPort int32 = 8686
 )
-var log = logf.Log.WithName("cmd")
+var log = logf.Log.WithName("scheduler")
 
 func printVersion() {
 	log.Info(fmt.Sprintf("Go Version: %s", runtime.Version()))
@@ -148,7 +147,7 @@ func main() {
 		}
 	}
 
-	log.Info("Starting the Cmd.")
+	log.Info("Starting the Chaos Scheduler.")
 
 	// Start the Cmd
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {

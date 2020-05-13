@@ -6,13 +6,13 @@ require (
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4
 	github.com/litmuschaos/chaos-operator v0.0.0-20200508174629-0052ee1eb384
-	github.com/litmuschaos/elves v0.0.0-20200502084504-13be0e6937ee
 	github.com/operator-framework/operator-sdk v0.15.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/pflag v1.0.5
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/code-generator v0.18.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20190918143330-0270cf2f1c1d
 	sigs.k8s.io/controller-runtime v0.4.0
 )

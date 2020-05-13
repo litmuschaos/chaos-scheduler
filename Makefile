@@ -70,6 +70,15 @@ build:
 	@echo "------------------"
 	@go build -o ${GOPATH}/src/github.com/litmuschaos/chaos-scheduler/build/_output/bin/chaos-scheduler -gcflags all=-trimpath=${GOPATH} -asmflags all=-trimpath=${GOPATH} github.com/litmuschaos/chaos-scheduler/cmd/manager 
 
+.PHONY: codegen
+codegen:
+	@echo "------------------"
+	@echo "--> Updating Codegen"
+	@echo "------------------"
+	${GOPATH}/src/k8s.io/code-generator/generate-groups.sh all \
+	github.com/litmuschaos/chaos-scheduler/pkg/client github.com/litmuschaos/chaos-scheduler/pkg/apis \
+	litmuschaos:v1alpha1
+
 .PHONY: test
 test:
 	@echo "------------------"

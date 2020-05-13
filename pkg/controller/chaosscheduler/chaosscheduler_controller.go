@@ -228,12 +228,9 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 		return reconcile.Result{}, err
 	}
 
-	// var times []time.Time
 	scheduledTime, errNew := getRecentUnmetScheduleTime(cs, cronString)
 	if errNew != nil {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedNeedsStart", "Cannot determine if engine needs to be started: %v", errNew)
-		// klog.Errorf("Cannot determine if %s needs to be started: %v", nameForLog, err)
-		return reconcile.Result{}, errNew
+		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedNeedsStart", "Cannot determine if engine needs to be started: %v", errNew)		return reconcile.Result{}, errNew
 	}
 
 	if scheduledTime == nil {
@@ -257,7 +254,7 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 	return reconcile.Result{RequeueAfter: duration}, nil
 }
 
-func (r *ReconcileChaosScheduler) createNewEngine(cs *chaosTypes.SchedulerInfo, scheduledTime time.Time) (reconcile.Result, error) {
+func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.SchedulerInfo, scheduledTime time.Time) (reconcile.Result, error) {
 
 	engineReq := getEngineFromTemplate(cs)
 	engineReq.Name = fmt.Sprintf("%s-%d", cs.Instance.Name, getTimeHash(scheduledTime))
@@ -265,11 +262,10 @@ func (r *ReconcileChaosScheduler) createNewEngine(cs *chaosTypes.SchedulerInfo, 
 
 	errCreate := r.client.Create(context.TODO(), engineReq)
 	if errCreate != nil {
-
-		r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedCreate", "Error creating engine: %v", errCreate)
+		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedCreate", "Error creating engine: %v", errCreate)
 		return reconcile.Result{}, errCreate
 	}
-	r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulCreate", "Created engine %v", engineReq.Name)
+	schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulCreate", "Created engine %v", engineReq.Name)
 
 	// ------------------------------------------------------------------ //
 
@@ -282,16 +278,16 @@ func (r *ReconcileChaosScheduler) createNewEngine(cs *chaosTypes.SchedulerInfo, 
 	// scheduled time).
 
 	cs.Instance.Status.Schedule.Status = schedulerV1.StatusRunning
-	ref, errRef := r.getRef(engineReq)
+	ref, errRef := schedulerReconcile.r.getRef(engineReq)
 	if errRef != nil {
-		// klog.V(2).Infof("Unable to make object reference for job for %s", nameForLog)
+		schedulerReconcile.reqLogger.Error(errRef, "Unable to make object reference for ", "engine", engineReq.Name)
 	} else {
 		cs.Instance.Status.Active = append(cs.Instance.Status.Active, *ref)
 	}
 	cs.Instance.Status.LastScheduleTime = &metav1.Time{Time: metav1.Now().Time}
 	cs.Instance.Status.Schedule.RunInstances = cs.Instance.Status.Schedule.RunInstances + 1
 
-	if errUpdate := r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
+	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
 		return reconcile.Result{}, errUpdate
 	}
 
