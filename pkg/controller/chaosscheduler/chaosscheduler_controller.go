@@ -3,7 +3,6 @@ package chaosscheduler
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -127,12 +125,6 @@ func (r *ReconcileChaosScheduler) Reconcile(request reconcile.Request) (reconcil
 		{
 			return schedulerReconcile.reconcileForCreationAndRunning(scheduler)
 		}
-	// case schedulerV1.StateStopped:
-	// 	{
-	// 		if !checkScheduleStatus(scheduler, schedulerV1.StatusStopped) {
-	// 			return r.reconcileForDelete(scheduler, request)
-	// 		}
-	// 	}
 	case schedulerV1.StateCompleted:
 		{
 			if !checkScheduleStatus(scheduler, schedulerV1.StatusCompleted) {
@@ -195,138 +187,16 @@ func checkScheduleStatus(cs *chaosTypes.SchedulerInfo, status schedulerV1.ChaosS
 	return cs.Instance.Status.Schedule.Status == status
 }
 
-func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.SchedulerInfo) (reconcile.Result, error) {
-
-	err := schedulerReconcile.r.updateActiveStatus(cs)
+// Fetch the ChaosScheduler instance
+func (r *ReconcileChaosScheduler) getChaosSchedulerInstance(request reconcile.Request) (*chaosTypes.SchedulerInfo, error) {
+	instance := &schedulerV1.ChaosSchedule{}
+	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
-		return reconcile.Result{}, err
+		// Error reading the object - requeue the request.
+		return nil, err
 	}
-
-	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-		schedulerReconcile.reqLogger.Error(errUpdate, "error updating status")
-		return reconcile.Result{}, errUpdate
+	scheduler := &chaosTypes.SchedulerInfo{
+		Instance: instance,
 	}
-
-	if metav1.Now().After(cs.Instance.Spec.Schedule.EndTime.Time) {
-
-		schedulerReconcile.reqLogger.Info("end time already passed", "endTime", cs.Instance.Spec.Schedule.EndTime)
-		cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
-		if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-			return reconcile.Result{}, errUpdate
-		}
-		return reconcile.Result{}, nil
-	}
-
-	if cs.Instance.DeletionTimestamp != nil {
-		// The Schedule is being deleted.
-		// Don't do anything other than updating status.
-		return reconcile.Result{}, nil
-	}
-
-	cronString, duration, err := scheduleRepeat(cs)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	scheduledTime, errNew := getRecentUnmetScheduleTime(cs, cronString)
-	if errNew != nil {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedNeedsStart", "Cannot determine if engine needs to be started: %v", errNew)		return reconcile.Result{}, errNew
-	}
-
-	if scheduledTime == nil {
-		schedulerReconcile.reqLogger.Info("not found any scheduled time", "reconciling after", duration.Minutes())
-		return reconcile.Result{RequeueAfter: duration}, nil
-	}
-
-	// TODO: set the concurencyPolicy and add the  different cases to be handled
-	// For now taking "Forbid" as by default
-	// if cs.Instance.Spec.ConcurrencyPolicy == schedulerV1.ForbidConcurrent && len(cs.Instance.Status.Active) > 0 {
-	if len(cs.Instance.Status.Active) > 0 {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "MissEngine", "Missed scheduled time to start an engine because of an active engine at: %s", scheduledTime.Format(time.RFC1123Z))
-		return reconcile.Result{RequeueAfter: duration}, nil
-	}
-
-	_, err = schedulerReconcile.r.createNewEngine(cs, *scheduledTime)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	schedulerReconcile.reqLogger.Info("Will Reconcile later", "after", duration.Minutes())
-	return reconcile.Result{RequeueAfter: duration}, nil
-}
-
-func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.SchedulerInfo, scheduledTime time.Time) (reconcile.Result, error) {
-
-	engineReq := getEngineFromTemplate(cs)
-	engineReq.Name = fmt.Sprintf("%s-%d", cs.Instance.Name, getTimeHash(scheduledTime))
-	engineReq.Namespace = cs.Instance.Namespace
-
-	errCreate := r.client.Create(context.TODO(), engineReq)
-	if errCreate != nil {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedCreate", "Error creating engine: %v", errCreate)
-		return reconcile.Result{}, errCreate
-	}
-	schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulCreate", "Created engine %v", engineReq.Name)
-
-	// ------------------------------------------------------------------ //
-
-	// If this process restarts at this point (after posting a engine, but
-	// before updating the status), then we might try to start the engine on
-	// the next time.  Actually, if we re-list the Engines on the next
-	// iteration of Reconcile loop, we might not see our own status update, and
-	// then post one again.  So, we need to use the engine name as a lock to
-	// prevent us from making the engine twice (name the engine with hash of its
-	// scheduled time).
-
-	cs.Instance.Status.Schedule.Status = schedulerV1.StatusRunning
-	ref, errRef := schedulerReconcile.r.getRef(engineReq)
-	if errRef != nil {
-		schedulerReconcile.reqLogger.Error(errRef, "Unable to make object reference for ", "engine", engineReq.Name)
-	} else {
-		cs.Instance.Status.Active = append(cs.Instance.Status.Active, *ref)
-	}
-	cs.Instance.Status.LastScheduleTime = &metav1.Time{Time: metav1.Now().Time}
-	cs.Instance.Status.Schedule.RunInstances = cs.Instance.Status.Schedule.RunInstances + 1
-
-	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-		return reconcile.Result{}, errUpdate
-	}
-
-	return reconcile.Result{}, nil
-}
-
-func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInfo) error {
-	optsList := []client.ListOption{
-		client.InNamespace(cs.Instance.Namespace),
-		client.MatchingLabels{
-			"app":      "chaos-engine",
-			"chaosUID": string(cs.Instance.UID)},
-	}
-
-	var engineList operatorV1.ChaosEngineList
-	if errList := r.client.List(context.TODO(), &engineList, optsList...); errList != nil {
-		return errList
-	}
-
-	childrenJobs := make(map[types.UID]bool)
-	for _, j := range engineList.Items {
-		childrenJobs[j.ObjectMeta.UID] = true
-		found := inActiveList(*cs, j.ObjectMeta.UID)
-
-		if found && IsEngineFinished(&j) {
-			deleteFromActiveList(cs, j.ObjectMeta.UID)
-			r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SawCompletedEngine", "Saw completed engine: %s, status: %v", j.Name, operatorV1.EngineStatusCompleted)
-		}
-	}
-
-	// Remove any engine reference from the active list if the corresponding engine does not exist any more.
-	// Otherwise, the schedule may be stuck in active mode forever even though there is no matching
-	// engine running.
-	for _, j := range cs.Instance.Status.Active {
-		if found := childrenJobs[j.UID]; !found {
-			r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "MissingEngine", "Active engine went missing: %v", j.Name)
-			deleteFromActiveList(cs, j.UID)
-		}
-	}
-
-	return nil
+	return scheduler, nil
 }
