@@ -1,0 +1,124 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: chaosschedules.litmuschaos.io
+spec:
+  group: litmuschaos.io
+  names:
+    kind: ChaosSchedule
+    listKind: ChaosScheduleList
+    plural: chaosschedules
+    singular: chaosschedule
+  scope: Namespaced
+  subresources:
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          type: object
+          properties:
+            chaosServiceAccount:
+              type: string
+            engineTemplateSpec:
+              properties:
+                annotationCheck:
+                  pattern: ^(true|false)$
+                  type: string
+                appinfo:
+                  properties:
+                    appkind:
+                      pattern: ^(deployment|statefulset|daemonset)$
+                      type: string
+                    applabel:
+                      type: string
+                    appns:
+                      type: string
+                  type: object
+                auxiliaryAppInfo:
+                  type: string
+                chaosServiceAccount:
+                  type: string
+                components:
+                  properties:
+                    monitor:
+                      properties:
+                        image:
+                          type: string
+                      type: object
+                    runner:
+                      properties:
+                        image:
+                          type: string
+                        type:
+                          pattern: ^(go|ansible)$
+                          type: string
+                      type: object
+                  type: object
+                engineState:
+                  type: string
+                experiments:
+                  items:
+                    properties:
+                      name:
+                        type: string
+                      spec:
+                        properties:
+                          components:
+                            properties:
+                              configMaps:
+                                items:
+                                  properties:
+                                    mountPath:
+                                      type: string
+                                    name:
+                                      type: string
+                                  type: object
+                                type: array
+                              env:
+                                items:
+                                  properties:
+                                    name:
+                                      type: string
+                                    value:
+                                      type: string
+                                  type: object
+                                type: array
+                              secrets:
+                                items:
+                                  properties:
+                                    mountPath:
+                                      type: string
+                                    name:
+                                      type: string
+                                  type: object
+                                type: array
+                            type: object
+                        type: object
+                    type: object
+                  type: array
+                jobCleanUpPolicy:
+                  pattern: ^(delete|retain)$
+                  type: string
+                monitoring:
+                  type: boolean
+            schedule:
+              type: object
+        status:
+          type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
