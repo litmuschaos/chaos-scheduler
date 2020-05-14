@@ -6,9 +6,9 @@ and Kubernetes infrastructure in a managed fashion. Its objective is to make the
 hardening of application workloads on Kubernetes easy by automating the execution of chaos experiments. A sample chaos 
 injection workflow could be as simple as:
 
-- Install the Litmus infrastructure components (RBAC, CRDs), the scheduler & Experiment custom resource bundles via helm charts
+- Install the Litmus infrastructure components (RBAC, CRDs), the scheduler, the operator & Experiment custom resource bundles via helm charts
 - Annotate the application under test (AUT), enabling it for chaos
-- Create a ChaosEngine custom resource tied to the AUT, which describes the experiment list to be executed 
+- Create a ChaosSchedule custom resource, which describes the ChaosEngine template to be scheduled 
 
 Benefits provided by the Chaos scheduler include: 
 
@@ -27,98 +27,79 @@ state". The logic that ensures this is commonly called "reconcile" function.
 The Chaos scheduler is built using the popular [Operator-SDK](https://github.com/operator-framework/operator-sdk/) framework, 
 which provides bootstrap support for new scheduler projects, allowing teams to focus on business/operational logic. 
 
-The Litmus Chaos scheduler helps reconcile the state of the ChaosEngine, a custom resource that holds the chaos intent 
+The Litmus Chaos scheduler helps reconcile the state of the ChaosSchedule, a custom resource that holds the chaos intent 
 specified by a developer/devops engineer against a particular stateless/stateful Kubernetes deployment. The scheduler performs
-specific actions upon CRUD of the ChaosEngine, its primary resource. The scheduler also defines secondary resources (the engine 
-runner pod and engine monitor service), which are created & managed by it in order to implement the reconcile functions. 
+specific actions upon CRUD of the ChaosSchedule, its primary resource. The scheduler also defines secondary resources (the 
+ChaosEngine), which are created & managed by it in order to implement the reconcile functions. 
 
-## What is a chaos engine?
+## What is a chaos schedule?
 
-The ChaosEngine is the core schema that defines the chaos workflow for a given application. Currently, it defines the following:
+The ChaosSchedule is the core schema that defines the chaos workflow for a given application. Currently, it defines the following:
 
-- Application Data (namespace, labels, kind)
-- List of Chaos Experiments to be executed
-- Attributes of the experiments, such as, rank/priority 
 - Execution Schedule for the batch run of the experiments
+- Template Spec of ChaosEngine according to which chaos is to be exceuted
 
-The ChaosEngine is the referenced as the owner of the secondary (reconcile) resource with Kubernetes deletePropagation 
-ensuring these also are removed upon deletion of the ChaosEngine CR.
+The ChaosSchedule is referenced as the owner of the secondary (reconcile) resource with Kubernetes deletePropagation 
+ensuring these also are removed upon deletion of the ChaosSchedule CR.
 
-Here is a sample ChaosEngineSpec for reference: 
+Here is a sample ChaosSchedule for reference: 
 
   ```yaml
   apiVersion: litmuschaos.io/v1alpha1
-  kind: ChaosEngine
+  kind: ChaosSchedule
   metadata:
-    name: engine-nginx
+    name: schedule-nginx
   spec:
-    appinfo: 
-      appns: default
-      applabel: "app=nginx"
-    experiments:
+    schedule:
+      type: "now"
+      executionTime: "2020-05-11T20:30:00Z"
+      startTime: "2020-05-12T05:47:00Z"
+      endTime: "2020-05-12T05:52:00Z"
+      minChaosInterval: "2m"   #format should be like "10m" or "2h" accordingly for minutes and   hours
+      instanceCount: "2"
+      includedDays: 0-6
+      random: false
+    engineTemplateSpec:
+      jobCleanUpPolicy: "retain"
+      engineState: "active"
+      auxiliaryAppInfo: ""
+      appinfo:
+        appns: default
+        applabel: "app=nginx"
+        appkind: deployment
+      chaosServiceAccount: litmus
+      monitoring: false
+      experiments:
       - name: pod-delete 
-        spec:
-          rank: 
-      - name: container-kill
-        spec:
-          rank:  
   ```
+
+## What is a chaos engine?
+
+Refer 
+- https://github.com/litmuschaos/chaos-operator
+- https://docs.litmuschaos.io/docs/getstarted/
 
 ## What is a litmus chaos chart and how can I use it?
 
-Litmus Chaos Charts are used to install "Chaos Experiment Bundles" & are categorized based on the nature
-of the experiments (general Kubernetes chaos, vendor/provider specific chaos - such as, OpenEBS or 
-application-specific chaos, say NuoDB). They consist of custom resources that hold low-level chaos(test) 
-parameters which are queried by the scheduler in order to execute the experiments. The spec.definition._fields_
-and their corresponding _values_ are used to construct the eventual execution artifact that runs the chaos 
-experiment (typically, the litmusbook, which is a K8s job resource). 
-
-Here is a sample ChaosEngineSpec for reference:
-
-```yaml
-apiVersion: litmuschaos.io/v1alpha1
-description:
-  message: |
-    Deletes a pod belonging to a deployment/statefulset/daemonset
-kind: ChaosExperiment
-metadata:
-  labels:
-    helm.sh/chart: k8sChaos-0.1.0
-    litmuschaos.io/instance: dealing-butterfly
-    litmuschaos.io/name: k8sChaos
-  name: pod-delete
-spec:
-  definition:
-    image: openebs/ansible-runner:ci
-    litmusbook: /experiments/chaos/kubernetes/pod_delete/run_litmus_test.yml
-    labels:
-      name: pod-delete
-    args:
-    - -c
-    - ansible-playbook ./experiments/chaos/kubernetes/pod_delete/test.yml -i /etc/ansible/hosts
-      -vv; exit 0
-    command:
-    - /bin/bash
-    env:
-    - name: ANSIBLE_STDOUT_CALLBACK
-      value: null
-    - name: TOTAL_CHAOS_DURATION
-      value: 15
-    - name: CHAOS_INTERVAL
-      value: 5
-    - name: LIB
-      value: ""
-```
+Refer 
+- https://github.com/litmuschaos/chaos-charts
+- https://hub.litmuschaos.io/
 
 ## What are the steps to get started?
 
-- Install Litmus infrastructure (RBAC, CRD, scheduler) components 
+- Install Litmus infrastructure (RBAC, CRD, operator, scheduler) components 
 
   ```
   helm repo add https://litmuschaos.github.io/chaos-charts
   helm repo update
   helm install litmuschaos/litmusInfra --namespace=litmus
   ```
+
+- Install Scheduler 
+
+  ```
+  kubectl apply -f https://raw.githubusercontent.com/litmuschaos/chaos-scheduler/master/deploy/chaos-scheduler.yaml
+  ```   
 
 - Download the desired Chaos Experiment bundles, say, general Kubernetes chaos
 
@@ -136,33 +117,69 @@ spec:
 
   ```
   # engine-nginx.yaml is a chaosengine manifest file
-  kubectl apply -f engine-nginx.yaml
+  kubectl apply -f schedule-nginx.yaml
   ``` 
-- Refer the ChaosEngine Status (or alternately, the corresponding ChaosResult resource) to know the status 
-  of each experiment. The `spec.verdict` is set to _Running_ when the experiment is in progress, eventually
-  changing to _pass_ or _fail_.
+
+- Refer the ChaosSchedule Status. While any ChaosEngine is active or yet to be formed in the    future `.status.schedule.status` is set to running eventually changed to completed
 
   ```
-  kubectl describe chaosresult engine-nginx-pod-delete
-
-  Name:         engine-nginx-pod-delete
+  kubectl describe chaosschedule schedule-nginx
+  
+  Name:         schedule-nginx
   Namespace:    default
   Labels:       <none>
-  Annotations:  kubectl.kubernetes.io/last-applied-configuration:
-                {"apiVersion":"litmuschaos.io/v1alpha1","kind":"ChaosResult","metadata":{"annotations":{},"name":"engine-nginx-pod-delete","namespace":"de...
-  API Version:  litmuschaos.io/v1alpha1
-  Kind:         ChaosResult
+  Annotations:  API Version:  litmuschaos.io/v1alpha1
+  Kind:         ChaosSchedule
   Metadata:
-    Creation Timestamp:  2019-05-22T12:10:19Z
-    Generation:          9
-    Resource Version:    8898730
-    Self Link:           /apis/litmuschaos.io/v1alpha1/namespaces/default/chaosresults/engine-nginx-pod-delete
-    UID:                 911ada69-7c8a-11e9-b37f-42010a80019f
+    Creation Timestamp:  2020-05-14T08:44:32Z
+    Generation:          3
+    Resource Version:    899464
+    Self Link:           /apis/litmuschaos.io/v1alpha1/namespaces/default/chaosschedules/  schedule-nginx
+    UID:                 347fb7e6-2c9d-428e-9ce1-42bdcfdab37d
   Spec:
-    Experimentstatus:
-      Phase:    <nil>
-      Verdict:  pass
-  Events:       <none>
+    Chaos Service Account:  
+    Engine Template Spec:
+      Appinfo:
+        Appkind:              deployment
+        Applabel:             app=nginx
+        Appns:                default
+      Chaos Service Account:  litmus
+      Components:
+        Runner:
+      Engine State:  active
+      Experiments:
+        Name:  pod-delete
+        Spec:
+          Components:
+          Rank:             0
+      Job Clean Up Policy:  retain
+    Schedule:
+      End Time:            2020-05-12T05:52:00Z
+      Execution Time:      2020-05-11T20:30:00Z
+      Included Days:       0-6
+      Instance Count:      2
+      Min Chaos Interval:  2m
+      Random:              false
+      Start Time:          2020-05-12T05:47:00Z
+      Type:                now
+    Schedule State:        active
+  Status:
+    Active:
+      API Version:       litmuschaos.io/v1alpha1
+      Kind:              ChaosEngine
+      Name:              schedule-nginx
+      Namespace:         default
+      Resource Version:  899463
+      UID:               14f49857-8879-4129-a5b9-a3a592149725
+    Last Schedule Time:  2020-05-14T08:44:32Z
+    Schedule:
+      Start Time:              2020-05-14T08:44:32Z
+      Status:                  running
+      Total Instances:         1
+  Events:
+    Type    Reason            Age   From             Message
+    ----    ------            ----  ----             -------
+    Normal  SuccessfulCreate  39s   chaos-scheduler  Created engine schedule-nginx
   ```
 
 ## Where are the docs?
