@@ -72,7 +72,7 @@ jobs:
       - checkout
       - run: |
           docker load -i /tmp/workspace/image.tar
-          ~/go/src/github.com/litmuschaos/chaos-scheduler/buildscripts/push --type=ci
+          ~/go/src/github.com/litmuschaos/chaos-scheduler/build/push --type=ci
 
   trivy-check:
     machine: true
@@ -104,11 +104,11 @@ jobs:
       - checkout 
       - run: | 
           docker load -i /tmp/workspace/image.tar
-          ~/go/src/github.com/litmuschaos/chaos-scheduler/buildscripts/push --type=release
+          ~/go/src/github.com/litmuschaos/chaos-scheduler/build/push --type=release
 
 workflows:
   version: 2
-  operator_build_deploy: 
+  scheduler_build_deploy:
     jobs:
       - build:
           filters:
