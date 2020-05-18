@@ -13,7 +13,7 @@ spec:
       labels:
         name: chaos-scheduler
     spec:
-      serviceAccountName: litmus
+      serviceAccountName: scheduler
       containers:
         - name: chaos-scheduler
           # Replace this with the built image name
