@@ -16,31 +16,28 @@ type ChaosScheduleSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kube-builder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-	//ChaosServiceAccount is the SA specified for chaos runner pods
+	// ChaosServiceAccount is the SA specified for chaos runner pods
 	ChaosServiceAccount string `json:"chaosServiceAccount"`
-	//Execution schedule of batch of chaos experiments
+	// Execution schedule of batch of chaos experiments
 	Schedule Schedule `json:"schedule"`
-	//ScheduleState determines whether to "halt", "abort" or "active" the schedule
+	// ScheduleState determines whether to "halt", "abort" or "active" the schedule
 	ScheduleState ScheduleState `json:"scheduleState"`
-	//TODO
-	//ConcurrencyPolicy will state whether two engines from the same schedule
+	// TODO
+	// ConcurrencyPolicy will state whether two engines from the same schedule
 	// can exist simultaneously or not
 	ConcurrencyPolicy ConcurrencyPolicy `json:"concurrencyPolicy,omitempty"`
-	//EngineTemplateSpec is the spec of the engine to be created by this schedule
+	// EngineTemplateSpec is the spec of the engine to be created by this schedule
 	EngineTemplateSpec operatorV1.ChaosEngineSpec `json:"engineTemplateSpec,omitempty"`
 }
 
-//ConcurrencyPolicy ...
+// ConcurrencyPolicy
 type ConcurrencyPolicy string
 
 const (
 	// AllowConcurrent allows CronJobs to run concurrently.
 	AllowConcurrent ConcurrencyPolicy = "Allow"
-
-	// ForbidConcurrent forbids concurrent runs, skipping next run if previous
-	// hasn't finished yet.
+	// ForbidConcurrent forbids concurrent runs, skipping next run if previous hasn't finished yet.
 	ForbidConcurrent ConcurrencyPolicy = "Forbid"
-
 	// ReplaceConcurrent cancels currently running job and replaces it with a new one.
 	ReplaceConcurrent ConcurrencyPolicy = "Replace"
 )
@@ -101,20 +98,32 @@ type ChaosScheduleStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kube-builder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-	//Status of the schedule whether active, aborted or halted
+	// Schedule depicts status of the schedule whether active, aborted or halted
 	Schedule ScheduleStatus `json:"schedule,omitempty"`
-	//LastScheduleTime ...
+	// LastScheduleTime states the last time an engine was created
 	LastScheduleTime *metav1.Time
-	//Active...
+	// Active states the list of chaosengines that are currently running
 	Active []coreV1.ObjectReference
 }
 
 // Schedule defines information about schedule of chaos batch run
 type Schedule struct {
-	//Whether the chaos is to be scheduled at a random time or not
-	Random bool `json:"random"`
-	//Type of schedule should be one of ('now', 'once', 'repeat')
-	Type string `json:"type"`
+	// Now is for scheduling the engine immediately
+	Now bool `json:"now,omitempty"`
+	// Once is for scheduling the engine at a specific time
+	Once *ScheduleOnce `json:"once,omitempty"`
+	// Repeat is for scheduling the engine between a time range
+	Repeat *ScheduleRepeat `json:"repeat,omitempty"`
+}
+
+// ScheduleOnce will contain parameters for execution the once strategy of scheduling
+type ScheduleOnce struct {
+	//Time at which experiment is to be run
+	ExecutionTime metav1.Time `json:"executionTime"`
+}
+
+// ScheduleRepeat will contain parameters for executing the repeat strategy of scheduling
+type ScheduleRepeat struct {
 	//Minimum Period b/w two iterations of chaos experiments batch run
 	MinChaosInterval string `json:"minChaosInterval"`
 	//Number of Instances of the experiment to be run within a given time range
@@ -125,8 +134,8 @@ type Schedule struct {
 	StartTime metav1.Time `json:"startTime"`
 	//End limit of the time range in which experiment is to be run
 	EndTime metav1.Time `json:"endTime"`
-	//Time at which experiment is to be run when Type='once'
-	ExecutionTime metav1.Time `json:"executionTime"`
+	//Whether the chaos is to be scheduled at a random time or not
+	Random bool `json:"random"`
 }
 
 // +genclient

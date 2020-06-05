@@ -29,9 +29,9 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 		return reconcile.Result{}, errUpdate
 	}
 
-	if metav1.Now().After(cs.Instance.Spec.Schedule.EndTime.Time) {
+	if metav1.Now().After(cs.Instance.Spec.Schedule.Repeat.EndTime.Time) {
 
-		schedulerReconcile.reqLogger.Info("end time already passed", "endTime", cs.Instance.Spec.Schedule.EndTime)
+		schedulerReconcile.reqLogger.Info("end time already passed", "endTime", cs.Instance.Spec.Schedule.Repeat.EndTime)
 		cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
 		if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
 			return reconcile.Result{}, errUpdate
@@ -57,16 +57,16 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 	}
 
 	if scheduledTime == nil {
-		schedulerReconcile.reqLogger.Info("not found any scheduled time", "reconciling after", duration.Minutes())
-		return reconcile.Result{RequeueAfter: duration}, nil
+		schedulerReconcile.reqLogger.Info("not found any scheduled time, reconciling after 10 seconds")
+		return reconcile.Result{RequeueAfter: time.Second * 10}, nil
 	}
-
 	// TODO: set the concurencyPolicy and add the  different cases to be handled
 	// For now taking "Forbid" as by default
 	// if cs.Instance.Spec.ConcurrencyPolicy == schedulerV1.ForbidConcurrent && len(cs.Instance.Status.Active) > 0 {
 	if len(cs.Instance.Status.Active) > 0 {
 		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "MissEngine", "Missed scheduled time to start an engine because of an active engine at: %s", scheduledTime.Format(time.RFC1123Z))
-		return reconcile.Result{RequeueAfter: duration}, nil
+		durationForNextScheduledTime := scheduledTime.Sub(time.Now())
+		return reconcile.Result{RequeueAfter: durationForNextScheduledTime}, nil
 	}
 
 	_, err = schedulerReconcile.createNewEngine(cs, *scheduledTime)
@@ -100,6 +100,7 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.Sch
 	// prevent us from making the engine twice (name the engine with hash of its
 	// scheduled time).
 
+	cs.Instance.Spec.ScheduleState = schedulerV1.StateActive
 	cs.Instance.Status.Schedule.Status = schedulerV1.StatusRunning
 	ref, errRef := schedulerReconcile.r.getRef(engineReq)
 	if errRef != nil {
@@ -107,8 +108,9 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.Sch
 	} else {
 		cs.Instance.Status.Active = append(cs.Instance.Status.Active, *ref)
 	}
-	cs.Instance.Status.LastScheduleTime = &metav1.Time{Time: metav1.Now().Time}
+	cs.Instance.Status.LastScheduleTime = &metav1.Time{Time: scheduledTime}
 	cs.Instance.Status.Schedule.RunInstances = cs.Instance.Status.Schedule.RunInstances + 1
+	cs.Instance.Status.Schedule.StartTime = cs.Instance.Spec.Schedule.Repeat.StartTime
 
 	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
 		return reconcile.Result{}, errUpdate
@@ -135,40 +137,41 @@ func getRecentUnmetScheduleTime(cs *chaosTypes.SchedulerInfo, cronString string)
 		// started a engine, but have not noticed it yet (distributed systems can
 		// have arbitrary delays).  In any case, use the creation time of the
 		// Schedule as last known start time.
-		earliestTime = cs.Instance.Spec.Schedule.StartTime.Time
+		earliestTime = cs.Instance.Spec.Schedule.Repeat.StartTime.Time.Add(time.Minute * -1)
 	}
+
 	if earliestTime.After(now) {
 		return nil, nil
 	}
-
 	var previousTime *time.Time
 
 	for t := sched.Next(earliestTime); !t.After(now); t = sched.Next(t) {
-
-		previousTime = &t
+		temp := t
+		previousTime = &temp
 	}
+	// cs.Instance.Status.Schedule.ExpectedNextRunTime = metav1.Time{Time: sched.Next(*previousTime)}
 	return previousTime, nil
 }
 
 func scheduleRepeat(cs *chaosTypes.SchedulerInfo) (string, time.Duration, error) {
 
-	interval, err := fetchInterval(cs.Instance.Spec.Schedule.MinChaosInterval)
+	interval, err := fetchInterval(cs.Instance.Spec.Schedule.Repeat.MinChaosInterval)
 	if err != nil {
 		return "", time.Duration(0), errors.New("error in parsing minChaosInterval(make sure to include 'm' or 'h' suffix for minutes and hours respectively)")
 	}
-	instances, err := fetchInstances(cs.Instance.Spec.Schedule.InstanceCount)
+	instances, err := fetchInstances(cs.Instance.Spec.Schedule.Repeat.InstanceCount)
 	if err != nil {
 		return "", time.Duration(0), errors.New("error in parsing instanceCount")
 	}
 
-	startTime := cs.Instance.Spec.Schedule.StartTime
-	endTime := cs.Instance.Spec.Schedule.EndTime
+	startTime := cs.Instance.Spec.Schedule.Repeat.StartTime
+	endTime := cs.Instance.Spec.Schedule.Repeat.EndTime
 	/* includedDays will be given in form comma seperated
 	 * list such as 0,2,4 or Mon,Wed,Sat
 	 * or in the range form such as 2-4 or Mon-Wed
 	 * 0 represents Sunday and 6 represents Saturday
 	 */
-	includedDays := cs.Instance.Spec.Schedule.IncludedDays
+	includedDays := cs.Instance.Spec.Schedule.Repeat.IncludedDays
 	if includedDays == "" {
 		return "", time.Duration(0), errors.New("Missing IncludedDays")
 	}
@@ -182,7 +185,7 @@ func scheduleRepeat(cs *chaosTypes.SchedulerInfo) (string, time.Duration, error)
 		// if err != nil {
 		// 	return "", err
 		// }
-		if strings.Contains(cs.Instance.Spec.Schedule.MinChaosInterval, "m") {
+		if strings.Contains(cs.Instance.Spec.Schedule.Repeat.MinChaosInterval, "m") {
 			return fmt.Sprintf("*/%d * * * %s", interval, includedDays), time.Minute * time.Duration(interval), nil
 		}
 		return fmt.Sprintf("* */%d * * %s", interval, includedDays), time.Hour * time.Duration(interval), nil
@@ -194,11 +197,11 @@ func scheduleRepeat(cs *chaosTypes.SchedulerInfo) (string, time.Duration, error)
 
 		if intervalHours >= 1 {
 			// to be sent in form of EnvVariable to executor
-			cs.Instance.Spec.Schedule.MinChaosInterval = fmt.Sprintf("%dh", int(intervalHours))
+			cs.Instance.Spec.Schedule.Repeat.MinChaosInterval = fmt.Sprintf("%dh", int(intervalHours))
 			return fmt.Sprintf("* */%d * * %s", int(intervalHours), includedDays), time.Hour * time.Duration(intervalHours), nil
 		} else if intervalMinutes >= 1 {
 			// to be sent in form of EnvVariable to executor
-			cs.Instance.Spec.Schedule.MinChaosInterval = fmt.Sprintf("%dm", int(intervalMinutes))
+			cs.Instance.Spec.Schedule.Repeat.MinChaosInterval = fmt.Sprintf("%dm", int(intervalMinutes))
 			return fmt.Sprintf("*/%d * * * %s", int(intervalMinutes), includedDays), time.Minute * time.Duration(intervalMinutes), nil
 		}
 		return "", time.Duration(0), errors.New("Too many instances to execute")
