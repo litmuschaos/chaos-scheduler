@@ -122,7 +122,7 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.Sch
 func getRecentUnmetScheduleTime(cs *chaosTypes.SchedulerInfo, cronString string) (*time.Time, error) {
 
 	now := time.Now()
-	sched, err := cron.ParseStandard(cronString)
+	cronSchedule, err := cron.ParseStandard(cronString)
 	if err != nil {
 		return nil, fmt.Errorf("unparseable schedule: %s : %s", cronString, err)
 	}
@@ -145,7 +145,7 @@ func getRecentUnmetScheduleTime(cs *chaosTypes.SchedulerInfo, cronString string)
 	}
 	var previousTime *time.Time
 
-	for t := sched.Next(earliestTime); !t.After(now); t = sched.Next(t) {
+	for t := cronSchedule.Next(earliestTime); !t.After(now); t = cronSchedule.Next(t) {
 		temp := t
 		previousTime = &temp
 	}

@@ -77,6 +77,7 @@ func getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) *operatorV1.ChaosEngine
 	engine.SetLabels(labels)
 
 	engine.Spec = cs.Instance.Spec.EngineTemplateSpec
+	engine.Spec.EngineState = operatorV1.EngineStateActive
 
 	return engine
 }

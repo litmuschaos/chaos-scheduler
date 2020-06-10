@@ -66,8 +66,6 @@ spec:
                           type: string
                       type: object
                   type: object
-                engineState:
-                  type: string
                 experiments:
                   items:
                     properties:
