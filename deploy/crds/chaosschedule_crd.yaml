@@ -66,8 +66,6 @@ spec:
                           type: string
                       type: object
                   type: object
-                engineState:
-                  type: string
                 experiments:
                   items:
                     properties:
@@ -114,6 +112,39 @@ spec:
                 monitoring:
                   type: boolean
             schedule:
+              oneOf:
+              - required:
+                - now
+              - required:
+                - once
+              - required:
+                - repeat
+              properties:
+                now:
+                  type: boolean
+                once:
+                  properties:
+                    executionTime:
+                      format: date-time
+                      type: date
+                  type: object
+                repeat:
+                  properties:
+                    endTime:
+                      format: date-time
+                      type: date
+                    includedDays:
+                      pattern: ((Mon|Tue|Wed|Thu|Fri|Sat|Sun)(,))*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)
+                      type: string
+                    instances:
+                      type: number
+                    minChaosInterval:
+                      pattern: (([1-6][0-9]|[1-9])m)|(\d+h)
+                      type: string
+                    startTime:
+                      format: date-time
+                      type: date
+                  type: object
               type: object
         status:
           type: object

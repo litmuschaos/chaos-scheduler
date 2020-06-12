@@ -17,41 +17,43 @@ import (
 
 func schedule(schedulerReconcile *reconcileScheduler, scheduler *chaosTypes.SchedulerInfo) (reconcile.Result, error) {
 
-	schedulerReconcile.reqLogger.Info("Current scheduler type derived is ", "schedulerType", scheduler.Instance.Spec.Schedule.Type)
-	switch scheduler.Instance.Spec.Schedule.Type {
-	case "now":
-		{
-			return schedulerReconcile.createForNowAndOnce(scheduler)
-		}
-	case "once":
-		{
-			scheduleTime := time.Now().Add(time.Minute * time.Duration(1))
-			startDuration := scheduler.Instance.Spec.Schedule.ExecutionTime.Local().Sub(scheduleTime)
+	if scheduler.Instance.Spec.Schedule.Now == true {
+		schedulerReconcile.reqLogger.Info("Current scheduler type derived is ", "schedulerType", "now")
+		return schedulerReconcile.createForNowAndOnce(scheduler)
 
-			if startDuration.Seconds() < 0 {
+	} else if scheduler.Instance.Spec.Schedule.Once != nil {
+		schedulerReconcile.reqLogger.Info("Current scheduler type derived is ", "schedulerType", "once")
+		scheduleTime := time.Now()
+		startDuration := scheduler.Instance.Spec.Schedule.Once.ExecutionTime.Local().Sub(scheduleTime)
+
+		if startDuration.Seconds() < 0 {
+			if scheduler.Instance.Spec.Schedule.Once.ExecutionTime.Time.Before(scheduleTime) {
 				return schedulerReconcile.createForNowAndOnce(scheduler)
 			}
-			schedulerReconcile.reqLogger.Info("Time left to schedule the cronjob", "Duration", scheduleTime.Sub(scheduler.Instance.Spec.Schedule.StartTime.Local()))
-			return reconcile.Result{RequeueAfter: startDuration}, nil
+			schedulerReconcile.reqLogger.Info("ExecutionTime elapsed before the schedule creation")
 		}
-	case "repeat":
-		{
-			/* StartDuration is the duration between current time
-			 * and the scheduled time to start the chaos which is
-			 * being used by reconciler to reque this resource after
-			 * that much duration
-			 * Chaos is being started 1 min before the scheduled time
-			 */
-			scheduleTime := time.Now()
-			startDuration := scheduler.Instance.Spec.Schedule.StartTime.Local().Sub(scheduleTime)
+		schedulerReconcile.reqLogger.Info("Time left to schedule the engine", "Duration", startDuration)
+		return reconcile.Result{RequeueAfter: startDuration}, nil
 
-			if startDuration.Seconds() < 0 {
-				return schedulerReconcile.createEngineRepeat(scheduler)
-			}
-			schedulerReconcile.reqLogger.Info("Time left to schedule the cronjob", "Duration", scheduleTime.Sub(scheduler.Instance.Spec.Schedule.StartTime.Local()))
-			return reconcile.Result{RequeueAfter: startDuration}, nil
+	} else if scheduler.Instance.Spec.Schedule.Repeat != nil {
+		schedulerReconcile.reqLogger.Info("Current scheduler type derived is ", "schedulerType", "repeat")
+		/* StartDuration is the duration between current time
+		 * and the scheduled time to start the chaos which is
+		 * being used by reconciler to reque this resource after
+		 * that much duration
+		 * Chaos is being started 1 min before the scheduled time
+		 */
+		scheduleTime := time.Now()
+		startDuration := scheduler.Instance.Spec.Schedule.Repeat.StartTime.Local().Sub(scheduleTime)
+
+		if startDuration.Seconds() < 0 {
+			return schedulerReconcile.createEngineRepeat(scheduler)
 		}
+		schedulerReconcile.reqLogger.Info("Time left to schedule the engine", "Duration", startDuration)
+		return reconcile.Result{RequeueAfter: startDuration}, nil
+
 	}
+
 	return reconcile.Result{}, errors.New("ScheduleType should be one of ('now', 'once', 'repeat')")
 }
 
@@ -75,6 +77,7 @@ func getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) *operatorV1.ChaosEngine
 	engine.SetLabels(labels)
 
 	engine.Spec = cs.Instance.Spec.EngineTemplateSpec
+	engine.Spec.EngineState = operatorV1.EngineStateActive
 
 	return engine
 }

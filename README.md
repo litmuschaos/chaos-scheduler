@@ -44,13 +44,13 @@ metadata:
   namespace: litmus
 spec:
   schedule:
-    type: "repeat"
-    executionTime: "2020-05-11T20:30:00Z"   #should be set for type=once
-    startTime: "2020-05-12T05:47:00Z"   #should be modified according to current UTC Time
-    endTime: "2020-05-12T05:52:00Z"   #should be modified according to current UTC Time
-    minChaosInterval: "2m"   #format should be like "10m" or "2h" accordingly for minutes and hours
-    instanceCount: "2"
-    includedDays: "mon,tue,wed"
+    repeat:
+      executionTime: "2020-05-11T20:30:00Z"   #should be set for type=once
+      startTime: "2020-05-12T05:47:00Z"   #should be modified according to current UTC Time
+      endTime: "2020-05-12T05:52:00Z"   #should be modified according to current UTC Time
+      minChaosInterval: "2m"   #format should be like "10m" or "2h" accordingly for minute and hours
+      instanceCount: "2"
+      includedDays: "Mon,Tue,Wed"
   engineTemplateSpec:
     appinfo:
       appns: 'default'
@@ -58,8 +58,6 @@ spec:
       appkind: 'deployment'
     # It can be true/false
     annotationCheck: 'true'
-    # It can be active/stop
-    engineState: 'active'
     #ex. values: ns1:name=percona,ns2:run=nginx
     auxiliaryAppInfo: ''
     chaosServiceAccount: pod-delete-sa
@@ -173,7 +171,6 @@ Refer
       Chaos Service Account:  litmus
       Components:
         Runner:
-      Engine State:  active
       Experiments:
         Name:  pod-delete
         Spec:
@@ -181,14 +178,12 @@ Refer
           Rank:             0
       Job Clean Up Policy:  retain
     Schedule:
-      End Time:            2020-05-12T05:52:00Z
-      Execution Time:      2020-05-11T20:30:00Z
-      Included Days:       0-6
-      Instance Count:      2
-      Min Chaos Interval:  2m
-      Random:              false
-      Start Time:          2020-05-12T05:47:00Z
-      Type:                now
+      Repeat:
+        End Time:            2020-05-12T05:52:00Z
+        Included Days:       Mon,Tue,Wed
+        Instance Count:      2
+        Min Chaos Interval:  2m
+        Start Time:          2020-05-12T05:47:00Z
     Schedule State:        active
   Status:
     Active:
@@ -207,6 +202,37 @@ Refer
     Type    Reason            Age   From             Message
     ----    ------            ----  ----             -------
     Normal  SuccessfulCreate  39s   chaos-scheduler  Created engine schedule-nginx
+  ```
+
+
+## How to halt the chaosschedule?
+
+- Edit the applied chaosschedule
+
+  ```bash
+  kubectl edit chaosschedule schedule-nginx
+  ```
+
+- Change the state to `halt`
+
+  ```yaml
+  spec:
+    scheduleState: halt
+  ```
+
+## How to resume the chaosschedule?
+
+- Edit the applied chaosschedule
+
+  ```bash
+  kubectl edit chaosschedule schedule-nginx
+  ```
+
+- Change the state to `active`
+
+  ```yaml
+  spec:
+    scheduleState: active
   ```
 
 - If you face any probelem check the [Troubleshooting Guide](https://docs.litmuschaos.io/docs/faq-troubleshooting/)
