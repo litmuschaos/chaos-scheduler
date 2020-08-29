@@ -81,9 +81,9 @@ type ScheduleStatus struct {
 	//Status defines the current running status of the schedule
 	Status ChaosStatus `json:"status"`
 	//StartTime defines the starting timestamp of the schedule
-	StartTime metav1.Time `json:"startTime,omitempty"`
+	StartTime *metav1.Time `json:"startTime,omitempty"`
 	//EndTime defines the end timestamp of the schedule
-	EndTime metav1.Time `json:"endTime,omitempty"`
+	EndTime *metav1.Time `json:"endTime,omitempty"`
 	//TotalInstances defines the total no. of instances to be executed
 	TotalInstances int `json:"totalInstances,omitempty"`
 	//RunInstances defines number of already ran instances at that point of time
@@ -124,18 +124,40 @@ type ScheduleOnce struct {
 
 // ScheduleRepeat will contain parameters for executing the repeat strategy of scheduling
 type ScheduleRepeat struct {
+	TimeRange  *TimeRange               `json:"timeRange"`
+	Properties ScheduleRepeatProperties `json:"properties"`
+	WorkHours  *WorkHours               `json:"workHours"`
+	WorkDays   *WorkDays                `json:"workDays"`
+}
+
+//TimeRange will contain time constraints for the chaos to be injected
+type TimeRange struct {
+	//Start limit of the time range in which experiment is to be run
+	StartTime *metav1.Time `json:"startTime"`
+	//End limit of the time range in which experiment is to be run
+	EndTime *metav1.Time `json:"endTime"`
+}
+
+//ScheduleRepeatProperties will define the properties needed by the schedule to inject chaos
+type ScheduleRepeatProperties struct {
 	//Minimum Period b/w two iterations of chaos experiments batch run
 	MinChaosInterval string `json:"minChaosInterval"`
 	//Number of Instances of the experiment to be run within a given time range
 	InstanceCount string `json:"instanceCount"`
-	//Days of week when experiments batch run is scheduled
-	IncludedDays string `json:"includedDays"`
-	//Start limit of the time range in which experiment is to be run
-	StartTime metav1.Time `json:"startTime"`
-	//End limit of the time range in which experiment is to be run
-	EndTime metav1.Time `json:"endTime"`
 	//Whether the chaos is to be scheduled at a random time or not
 	Random bool `json:"random"`
+}
+
+//WorkHours specify in which hours of the day chaos is to be injected
+type WorkHours struct {
+	//Hours of the day when experiments batch run is scheduled
+	IncludedHours string `json:"includedHours"`
+}
+
+//WorkDays specify in which hours of the day chaos is to be injected
+type WorkDays struct {
+	//Days of week when experiments batch run is scheduled
+	IncludedDays string `json:"includedDays"`
 }
 
 // +genclient
