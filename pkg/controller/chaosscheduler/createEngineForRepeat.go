@@ -25,6 +25,7 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 	}
 
 	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
+		schedulerReconcile.reqLogger.Info("schedule ", "instance", cs.Instance)
 		schedulerReconcile.reqLogger.Error(errUpdate, "error updating status")
 		return reconcile.Result{}, errUpdate
 	}
@@ -37,7 +38,7 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 			schedulerReconcile.reqLogger.Info("end time already passed", "endTime", endTime)
 			cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
 			if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-				return reconcile.Result{}, errUpdate
+				return reconcile.Result{Requeue: true}, errUpdate
 			}
 			return reconcile.Result{}, nil
 		}
@@ -49,7 +50,7 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 		return reconcile.Result{}, nil
 	}
 
-	cronString, duration, err := scheduleRepeat(cs)
+	cronString, duration, err := schedulerReconcile.scheduleRepeat(cs)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -147,10 +148,12 @@ func getRecentUnmetScheduleTime(cs *chaosTypes.SchedulerInfo, cronString string)
 		earliestTime = cs.Instance.Status.LastScheduleTime.Time
 	} else if timeRange != nil && timeRange.StartTime != nil {
 		// If none found, then this is either a recently created schedule,
-		// or the active/completed info was somehow lost (contract for status
-		// in kubernetes says it may need to be recreated), or that we have
-		// started a engine, but have not noticed it yet (distributed systems can
-		// have arbitrary delays).
+		// or the active/completed info was somehow lost (it may need to be recreated),
+		// or that we have started a engine, but have not noticed it yet (distributed
+		//	systems can have arbitrary delays).
+		// Since we are checking the startTime with currentTime. It is
+		// possible that we might miss a schedule at the TIME of CREATION
+		// by just a few seconds because of the slight delay in reconciliation process.
 		earliestTime = timeRange.StartTime.Time.Add(time.Minute * -1)
 	} else {
 		earliestTime = cs.Instance.GetCreationTimestamp().Time
@@ -169,22 +172,16 @@ func getRecentUnmetScheduleTime(cs *chaosTypes.SchedulerInfo, cronString string)
 	return previousTime, nil
 }
 
-func scheduleRepeat(cs *chaosTypes.SchedulerInfo) (string, time.Duration, error) {
+func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *chaosTypes.SchedulerInfo) (string, time.Duration, error) {
 
 	interval, err := fetchInterval(cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval)
 	if err != nil {
 		return "", time.Duration(0), errors.New("error in parsing minChaosInterval(make sure to include 'm' or 'h' suffix for minutes and hours respectively)")
 	}
-	instances, err := fetchInstances(cs.Instance.Spec.Schedule.Repeat.Properties.InstanceCount)
-	if err != nil {
-		return "", time.Duration(0), errors.New("error in parsing instanceCount")
-	}
 
 	var startTime *metav1.Time
-	var endTime *metav1.Time
 	if cs.Instance.Spec.Schedule.Repeat.TimeRange != nil {
 		startTime = cs.Instance.Spec.Schedule.Repeat.TimeRange.StartTime
-		endTime = cs.Instance.Spec.Schedule.Repeat.TimeRange.EndTime
 	}
 
 	if startTime == nil {
@@ -215,34 +212,16 @@ func scheduleRepeat(cs *chaosTypes.SchedulerInfo) (string, time.Duration, error)
 		/* MinChaosInterval will be in form of "10m" or "2h"
 		 * where 'm' or 'h' indicating "minutes" or "hours" respectively
 		 */
-		// cs.Instance.Status.Schedule.TotalInstances, err = getTotalInstances(cs)
-		// if err != nil {
-		// 	return "", err
-		// }
 		if strings.Contains(cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval, "m") {
-			return fmt.Sprintf("*/%d %s * * %s", interval, includedHours, includedDays), time.Minute * time.Duration(interval), nil
+			cron := fmt.Sprintf("*/%d %s * * %s", interval, includedHours, includedDays)
+			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
+			return cron, time.Minute * time.Duration(interval), nil
 		}
-		return fmt.Sprintf("* %s/%d * * %s", includedHours, interval, includedDays), time.Hour * time.Duration(interval), nil
-	} else if instances != 0 && endTime != nil {
-
-		cs.Instance.Status.Schedule.TotalInstances = instances
-		duration := endTime.Sub(startTime.UTC())
-		//schedule at the end time will not be able to schedule so increaing the no. of instance
-		intervalHours := duration.Hours() / float64(instances)
-		intervalMinutes := duration.Minutes() / float64(instances)
-
-		if intervalHours >= 1 {
-			// to be sent in form of EnvVariable to executor
-			cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval = fmt.Sprintf("%dh", int(intervalHours))
-			return fmt.Sprintf("* %s/%d * * %s", includedHours, int(intervalHours), includedDays), time.Hour * time.Duration(intervalHours), nil
-		} else if intervalMinutes >= 1 {
-			// to be sent in form of EnvVariable to executor
-			cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval = fmt.Sprintf("%dm", int(intervalMinutes))
-			return fmt.Sprintf("*/%d %s * * %s", int(intervalMinutes), includedHours, includedDays), time.Minute * time.Duration(intervalMinutes), nil
-		}
-		return "", time.Duration(0), errors.New("Too many instances to execute")
+		cron := fmt.Sprintf("* %s/%d * * %s", includedHours, interval, includedDays)
+		schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
+		return cron, time.Hour * time.Duration(interval), nil
 	}
-	return "", time.Duration(0), errors.New("MinChaosInterval and InstanceCount with combination of endTime not found")
+	return "", time.Duration(0), errors.New("MinChaosInterval  not found")
 }
 
 func fetchInterval(minChaosInterval string) (int, error) {
@@ -257,13 +236,6 @@ func fetchInterval(minChaosInterval string) (int, error) {
 		return strconv.Atoi(strings.Split(minChaosInterval, "m")[0])
 	}
 	return 0, errors.New("minChaosInterval should be in either minutes or hours and the prefix should be 'm' or 'h' respectively")
-}
-
-func fetchInstances(instanceCount string) (int, error) {
-	if instanceCount == "" {
-		return 0, nil
-	}
-	return strconv.Atoi(instanceCount)
 }
 
 // getTimeHash returns Unix Epoch Time

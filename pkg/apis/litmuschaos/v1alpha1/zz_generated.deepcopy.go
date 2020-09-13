@@ -232,7 +232,10 @@ func (in *ScheduleStatus) DeepCopyInto(out *ScheduleStatus) {
 		in, out := &in.EndTime, &out.EndTime
 		*out = (*in).DeepCopy()
 	}
-	in.ExpectedNextRunTime.DeepCopyInto(&out.ExpectedNextRunTime)
+	if in.ExpectedNextRunTime != nil {
+		in, out := &in.ExpectedNextRunTime, &out.ExpectedNextRunTime
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 

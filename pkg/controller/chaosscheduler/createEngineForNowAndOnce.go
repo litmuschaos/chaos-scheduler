@@ -43,7 +43,6 @@ func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes
 		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulCreate", "Created engine %v", engine.Name)
 		cs.Instance.Spec.ScheduleState = schedulerV1.StateActive
 		cs.Instance.Status.Schedule.Status = schedulerV1.StatusRunning
-		cs.Instance.Status.Schedule.TotalInstances = 1
 		cs.Instance.Status.Schedule.StartTime = &currentTime
 		cs.Instance.Status.LastScheduleTime = &currentTime
 		ref, errRef := schedulerReconcile.r.getRef(engine)
