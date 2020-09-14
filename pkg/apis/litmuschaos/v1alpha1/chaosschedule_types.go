@@ -17,11 +17,11 @@ type ChaosScheduleSpec struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kube-builder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 	// ChaosServiceAccount is the SA specified for chaos runner pods
-	ChaosServiceAccount string `json:"chaosServiceAccount"`
+	ChaosServiceAccount string `json:"chaosServiceAccount,omitempty"`
 	// Execution schedule of batch of chaos experiments
-	Schedule Schedule `json:"schedule"`
+	Schedule Schedule `json:"schedule,omitempty"`
 	// ScheduleState determines whether to "halt", "abort" or "active" the schedule
-	ScheduleState ScheduleState `json:"scheduleState"`
+	ScheduleState ScheduleState `json:"scheduleState,omitempty"`
 	// TODO
 	// ConcurrencyPolicy will state whether two engines from the same schedule
 	// can exist simultaneously or not
@@ -79,17 +79,15 @@ const (
 //ScheduleStatus describes the overall status of the schedule
 type ScheduleStatus struct {
 	//Status defines the current running status of the schedule
-	Status ChaosStatus `json:"status"`
+	Status ChaosStatus `json:"status,omitempty"`
 	//StartTime defines the starting timestamp of the schedule
-	StartTime metav1.Time `json:"startTime,omitempty"`
+	StartTime *metav1.Time `json:"startTime,omitempty"`
 	//EndTime defines the end timestamp of the schedule
-	EndTime metav1.Time `json:"endTime,omitempty"`
-	//TotalInstances defines the total no. of instances to be executed
-	TotalInstances int `json:"totalInstances,omitempty"`
+	EndTime *metav1.Time `json:"endTime,omitempty"`
 	//RunInstances defines number of already ran instances at that point of time
 	RunInstances int `json:"runInstances,omitempty"`
 	//ExpectedNextRunTime defines the approximate time at which execution of the next instance will take place
-	ExpectedNextRunTime metav1.Time `json:"expectedNextRunTime,omitempty"`
+	ExpectedNextRunTime *metav1.Time `json:"expectedNextRunTime,omitempty"`
 }
 
 // ChaosScheduleStatus derives information about status of individual experiments
@@ -101,9 +99,9 @@ type ChaosScheduleStatus struct {
 	// Schedule depicts status of the schedule whether active, aborted or halted
 	Schedule ScheduleStatus `json:"schedule,omitempty"`
 	// LastScheduleTime states the last time an engine was created
-	LastScheduleTime *metav1.Time
+	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty"`
 	// Active states the list of chaosengines that are currently running
-	Active []coreV1.ObjectReference
+	Active []coreV1.ObjectReference `json:"active,omitempty"`
 }
 
 // Schedule defines information about schedule of chaos batch run
@@ -124,18 +122,38 @@ type ScheduleOnce struct {
 
 // ScheduleRepeat will contain parameters for executing the repeat strategy of scheduling
 type ScheduleRepeat struct {
-	//Minimum Period b/w two iterations of chaos experiments batch run
-	MinChaosInterval string `json:"minChaosInterval"`
-	//Number of Instances of the experiment to be run within a given time range
-	InstanceCount string `json:"instanceCount"`
-	//Days of week when experiments batch run is scheduled
-	IncludedDays string `json:"includedDays"`
+	TimeRange  *TimeRange               `json:"timeRange,omitempty"`
+	Properties ScheduleRepeatProperties `json:"properties,omitempty"`
+	WorkHours  *WorkHours               `json:"workHours,omitempty"`
+	WorkDays   *WorkDays                `json:"workDays,omitempty"`
+}
+
+//TimeRange will contain time constraints for the chaos to be injected
+type TimeRange struct {
 	//Start limit of the time range in which experiment is to be run
-	StartTime metav1.Time `json:"startTime"`
+	StartTime *metav1.Time `json:"startTime,omitempty"`
 	//End limit of the time range in which experiment is to be run
-	EndTime metav1.Time `json:"endTime"`
+	EndTime *metav1.Time `json:"endTime,omitempty"`
+}
+
+//ScheduleRepeatProperties will define the properties needed by the schedule to inject chaos
+type ScheduleRepeatProperties struct {
+	//Minimum Period b/w two iterations of chaos experiments batch run
+	MinChaosInterval string `json:"minChaosInterval,omitempty"`
 	//Whether the chaos is to be scheduled at a random time or not
-	Random bool `json:"random"`
+	Random bool `json:"random,omitempty"`
+}
+
+//WorkHours specify in which hours of the day chaos is to be injected
+type WorkHours struct {
+	//Hours of the day when experiments batch run is scheduled
+	IncludedHours string `json:"includedHours,omitempty"`
+}
+
+//WorkDays specify in which hours of the day chaos is to be injected
+type WorkDays struct {
+	//Days of week when experiments batch run is scheduled
+	IncludedDays string `json:"includedDays,omitempty"`
 }
 
 // +genclient

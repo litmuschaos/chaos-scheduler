@@ -43,8 +43,18 @@ func schedule(schedulerReconcile *reconcileScheduler, scheduler *chaosTypes.Sche
 		 * that much duration
 		 * Chaos is being started 1 min before the scheduled time
 		 */
+
+		var startTime *metav1.Time
+		if scheduler.Instance.Spec.Schedule.Repeat.TimeRange != nil {
+			startTime = scheduler.Instance.Spec.Schedule.Repeat.TimeRange.StartTime
+		}
+
+		if startTime == nil {
+			startTime = &scheduler.Instance.CreationTimestamp
+		}
+
 		scheduleTime := time.Now()
-		startDuration := scheduler.Instance.Spec.Schedule.Repeat.StartTime.Local().Sub(scheduleTime)
+		startDuration := startTime.Local().Sub(scheduleTime)
 
 		if startDuration.Seconds() < 0 {
 			return schedulerReconcile.createEngineRepeat(scheduler)

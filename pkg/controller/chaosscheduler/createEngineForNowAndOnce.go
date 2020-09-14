@@ -25,6 +25,7 @@ func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes
 		return reconcile.Result{}, errUpdate
 	}
 
+	currentTime := metav1.Now()
 	engine := &operatorV1.ChaosEngine{}
 	err = schedulerReconcile.r.client.Get(context.TODO(), types.NamespacedName{Name: cs.Instance.Name, Namespace: cs.Instance.Namespace}, engine)
 	if err != nil && k8serrors.IsNotFound(err) {
@@ -42,15 +43,13 @@ func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes
 		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulCreate", "Created engine %v", engine.Name)
 		cs.Instance.Spec.ScheduleState = schedulerV1.StateActive
 		cs.Instance.Status.Schedule.Status = schedulerV1.StatusRunning
-		cs.Instance.Status.Schedule.TotalInstances = 1
-		cs.Instance.Status.Schedule.StartTime = metav1.Now()
-		cs.Instance.Status.LastScheduleTime = &metav1.Time{Time: metav1.Now().Time}
+		cs.Instance.Status.Schedule.StartTime = &currentTime
+		cs.Instance.Status.LastScheduleTime = &currentTime
 		ref, errRef := schedulerReconcile.r.getRef(engine)
 		if errRef != nil {
-			// klog.V(2).Infof("Unable to make object reference for job for %s", nameForLog)
-		} else {
-			cs.Instance.Status.Active = append(cs.Instance.Status.Active, *ref)
+			return reconcile.Result{}, errRef
 		}
+		cs.Instance.Status.Active = append(cs.Instance.Status.Active, *ref)
 		if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -59,7 +58,7 @@ func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes
 		return reconcile.Result{}, err
 	} else if IsEngineFinished(engine) {
 		cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
-		cs.Instance.Status.Schedule.EndTime = metav1.Now()
+		cs.Instance.Status.Schedule.EndTime = &currentTime
 		if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); err != nil {
 			return reconcile.Result{}, err
 		}

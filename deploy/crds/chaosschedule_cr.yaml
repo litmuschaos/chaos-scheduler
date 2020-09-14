@@ -4,13 +4,16 @@ metadata:
   name: schedule-nginx
 spec:
   schedule:
-    type: "now"
-    executionTime: "2020-05-11T20:30:00Z"   #should be set for type=once
-    startTime: "2020-05-12T05:47:00Z"   #should be modified according to current UTC Time, for type=repeat
-    endTime: "2020-05-12T05:52:00Z"   #should be modified according to current UTC Time, for type=repeat
-    minChaosInterval: "2m"   #format should be like "10m" or "2h" accordingly for minutes and hours, for type=repeat
-    instanceCount: "2" #should be set for type=repeat
-    includedDays: "mon,tue,wed" #should be set for type=repeat
+    repeat:
+      timeRange:
+#        startTime: "2020-05-12T05:47:00Z"   #should be modified according to current UTC Time, for type=repeat
+        endTime: "2020-09-13T02:58:00Z"   #should be modified according to current UTC Time, for type=repeat
+      properties:
+        minChaosInterval: "2m"   #format should be like "10m" or "2h" accordingly for minutes and hours, for type=repeat
+      workHours:
+        includedHours: 0-12
+      workDays:
+        includedDays: "Mon,Tue,Wed,Sat,Sun" #should be set for type=repeat
   engineTemplateSpec:
     appinfo:
       appns: 'default'
