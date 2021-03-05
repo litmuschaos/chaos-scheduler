@@ -85,7 +85,7 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/imdario/mergo
 # github.com/json-iterator/go v1.1.9
 github.com/json-iterator/go
-# github.com/litmuschaos/chaos-operator v0.0.0-20210126054859-85bb0ad85bfa
+# github.com/litmuschaos/chaos-operator v0.0.0-20210224131102-ca6a465ed348
 github.com/litmuschaos/chaos-operator/pkg/apis/litmuschaos/v1alpha1
 github.com/litmuschaos/chaos-operator/pkg/client/clientset/versioned/scheme
 # github.com/mailru/easyjson v0.7.0
