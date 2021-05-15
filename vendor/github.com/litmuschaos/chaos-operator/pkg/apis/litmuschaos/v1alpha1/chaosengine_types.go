@@ -36,14 +36,14 @@ type ChaosEngineSpec struct {
 	Components ComponentParams `json:"components"`
 	//Consists of experiments executed by the engine
 	Experiments []ExperimentList `json:"experiments"`
-	//Monitor Enable Status
-	Monitoring bool `json:"monitoring,omitempty"`
 	//JobCleanUpPolicy decides to retain or delete the jobs
 	JobCleanUpPolicy CleanUpPolicy `json:"jobCleanUpPolicy,omitempty"`
 	//AuxiliaryAppInfo contains details of dependent applications (infra chaos)
 	AuxiliaryAppInfo string `json:"auxiliaryAppInfo,omitempty"`
 	//EngineStatus is a requirement for validation
 	EngineState EngineState `json:"engineState"`
+	// TerminationGracePeriodSeconds contains terminationGracePeriod for the chaos resources
+	TerminationGracePeriodSeconds int64 `json:"terminationGracePeriodSeconds,omitempty"`
 }
 
 // EngineState provides interface for all supported strings in spec.EngineState
@@ -140,7 +140,7 @@ type RunnerInfo struct {
 	//ImagePullSecrets for runner pod
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// Runner Annotations that needs to be provided in the pod for pod that is getting created
-	RunnerAnnotation map[string]string `json:"runnerannotation,omitempty"`
+	RunnerAnnotation map[string]string `json:"runnerAnnotations,omitempty"`
 	// NodeSelector for runner pod
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// ConfigMaps for runner pod
@@ -193,9 +193,6 @@ type ProbeAttributes struct {
 	// mode for k8s probe
 	// it can be SOT, EOT, Edge
 	Mode string `json:"mode,omitempty"`
-	// Operation performed by the k8s probe
-	// it can be create, delete, present, absent
-	Operation string `json:"operation,omitempty"`
 	// Data contains the manifest/data for the resource, which need to be created
 	// it supported for create operation only
 	Data string `json:"data,omitempty"`
@@ -203,14 +200,6 @@ type ProbeAttributes struct {
 
 // K8sProbeInputs contains all the inputs required for k8s probe
 type K8sProbeInputs struct {
-	// Command need to be executed for the probe
-	Command K8sCommand `json:"command,omitempty"`
-	// Expected output or result of the command
-	ExpectedResult string `json:"expectedResult,omitempty"`
-}
-
-// K8sCommand contains all the commands need for the k8sprobe
-type K8sCommand struct {
 	// group of the resource
 	Group string `json:"group,omitempty"`
 	// apiversion of the resource
@@ -223,6 +212,9 @@ type K8sCommand struct {
 	FieldSelector string `json:"fieldSelector,omitempty"`
 	// labelselector to get the resource using labels selector
 	LabelSelector string `json:"labelSelector,omitempty"`
+	// Operation performed by the k8s probe
+	// it can be create, delete, present, absent
+	Operation string `json:"operation,omitempty"`
 }
 
 //CmdProbeInputs contains all the inputs required for cmd probe
@@ -269,6 +261,8 @@ type HTTPProbeInputs struct {
 	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 	// Method define the http method, it can be get or post
 	Method HTTPMethod `json:"method,omitempty"`
+	// ResponseTimeout contains the http response timeout
+	ResponseTimeout int `json:"responseTimeout,omitempty"`
 }
 
 // HTTPMethod define the http method details
@@ -321,7 +315,7 @@ type ExperimentComponents struct {
 	ENV                        []corev1.EnvVar               `json:"env,omitempty"`
 	ConfigMaps                 []ConfigMap                   `json:"configMaps,omitempty"`
 	Secrets                    []Secret                      `json:"secrets,omitempty"`
-	ExperimentAnnotations      map[string]string             `json:"experimentannotation,omitempty"`
+	ExperimentAnnotations      map[string]string             `json:"experimentAnnotations,omitempty"`
 	ExperimentImage            string                        `json:"experimentImage,omitempty"`
 	ExperimentImagePullSecrets []corev1.LocalObjectReference `json:"experimentImagePullSecrets,omitempty"`
 	NodeSelector               map[string]string             `json:"nodeSelector,omitempty"`
