@@ -87,6 +87,8 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.Sch
 	engineReq := getEngineFromTemplate(cs)
 	engineReq.Name = fmt.Sprintf("%s-%d", cs.Instance.Name, getTimeHash(scheduledTime))
 	engineReq.Namespace = cs.Instance.Namespace
+	engineReq.Labels = cs.Instance.Labels
+	engineReq.Annotations = cs.Instance.Annotations
 
 	errCreate := schedulerReconcile.r.client.Create(context.TODO(), engineReq)
 	if errCreate != nil {
