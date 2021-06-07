@@ -68,7 +68,7 @@ build:
 	@echo "------------------"
 	@echo "--> Build Chaos Scheduler"
 	@echo "------------------"
-	@go build -o ${GOPATH}/src/github.com/litmuschaos/chaos-scheduler/build/_output/bin/chaos-scheduler -gcflags all=-trimpath=${GOPATH} -asmflags all=-trimpath=${GOPATH} github.com/litmuschaos/chaos-scheduler/cmd/manager 
+	@go build -o build/_output/bin/chaos-scheduler -gcflags all=-trimpath=${GOPATH} -asmflags all=-trimpath=${GOPATH} github.com/litmuschaos/chaos-scheduler/cmd/manager
 
 .PHONY: codegen
 codegen:

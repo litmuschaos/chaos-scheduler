@@ -34,6 +34,8 @@ func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes
 		engine = getEngineFromTemplate(cs)
 		engine.Name = cs.Instance.Name
 		engine.Namespace = cs.Instance.Namespace
+		engine.Labels = cs.Instance.Labels
+		engine.Annotations = cs.Instance.Annotations
 
 		err = schedulerReconcile.r.client.Create(context.TODO(), engine)
 		if err != nil {
