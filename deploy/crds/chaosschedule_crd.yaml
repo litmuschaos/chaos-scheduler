@@ -13,6 +13,7 @@ spec:
   subresources:
   validation:
     openAPIV3Schema:
+      type: object
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
@@ -32,8 +33,6 @@ spec:
             engineTemplateSpec:
               type: object
               properties:
-                monitoring:
-                  type: boolean
                 jobCleanUpPolicy:
                   type: string
                   pattern: ^(delete|retain)$
@@ -61,10 +60,13 @@ spec:
                   pattern: ^(active|stop)$
                 chaosServiceAccount:
                   type: string
+                terminationGracePeriodSeconds:
+                  type: integer
                 components:
                   type: object
                   properties:
                     runner:
+                      x-kubernetes-preserve-unknown-fields: true 
                       type: object
                       properties:
                         image:
@@ -72,7 +74,7 @@ spec:
                         type:
                           type: string
                           pattern: ^(go)$
-                        runnerannotation:
+                        runnerAnnotations:
                           type: object
                           additionalProperties:
                             type: string
@@ -83,6 +85,29 @@ spec:
                               value:
                                 type: string
                                 minLength: 1
+                        tolerations:
+                          description: Pod's tolerations.
+                          items:
+                            description: The pod with this Toleration tolerates any taint matches the <key,value,effect> using the matching operator <operator>.
+                            properties:
+                              effect:
+                                description: Effect to match. Empty means all effects.
+                                type: string
+                              key:
+                                description: Taint key the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists.
+                                type: string
+                              operator:
+                                description: Operators are Exists or Equal. Defaults to Equal.
+                                type: string
+                              tolerationSeconds:
+                                description: Period of time the toleration tolerates the taint.
+                                format: int64
+                                type: integer
+                              value:
+                                description: If the operator is Exists, the value should be empty, otherwise just a regular string.
+                                type: string
+                            type: object
+                          type: array
                 experiments:
                   type: array
                   items:
@@ -109,21 +134,22 @@ spec:
                                 k8sProbe/inputs:
                                   type: object
                                   properties:
-                                    command:
-                                      type: object
-                                      properties:
-                                        group:
-                                          type: string
-                                        version:
-                                          type: string
-                                        resource:
-                                          type: string
-                                        namespace:
-                                          type: string
-                                        fieldSelector:
-                                          type: string
-                                        labelSelector:
-                                          type: string
+                                    group:
+                                      type: string
+                                    version:
+                                      type: string
+                                    resource:
+                                      type: string
+                                    namespace:
+                                      type: string
+                                    fieldSelector:
+                                      type: string
+                                    labelSelector:
+                                      type: string
+                                    operation:
+                                      type: string
+                                      pattern: ^(present|absent|create|delete)$
+                                      minLength: 1
                                 cmdProbe/inputs:
                                   type: object
                                   properties:
@@ -152,11 +178,11 @@ spec:
                                       minLength: 1
                                     insecureSkipVerify:
                                       type: boolean
-                                      minLength: 1
+                                    responseTimeout: 
+                                      type: integer
                                     method:
                                       type: object
                                       minProperties: 1
-                                      maxProperties: 1
                                       properties:
                                         get:
                                           type: object
@@ -182,7 +208,7 @@ spec:
                                               minLength: 1
                                             responseCode:
                                               type: string
-                                              minLength: 1 
+                                              minLength: 1                                       
                                 promProbe/inputs:
                                   type: object
                                   properties:
@@ -217,17 +243,16 @@ spec:
                                       type: integer
                                     initialDelaySeconds:
                                       type: integer
+                                    stopOnFailure:
+                                      type: boolean
                                 mode:
                                   type: string
                                   pattern: ^(SOT|EOT|Edge|Continuous|OnChaos)$
                                   minLength: 1
-                                operation:
-                                  type: string
-                                  pattern: ^(present|absent|create|delete)$
-                                  minLength: 1
                                 data:
                                   type: string
                           components:
+                            x-kubernetes-preserve-unknown-fields: true 
                             type: object
                             properties:
                               statusCheckTimeouts:
@@ -239,7 +264,17 @@ spec:
                                     type: integer
                               nodeSelector:
                                 type: object
-                                minLength: 1
+                                additionalProperties:
+                                  type: string
+                                  properties:
+                                    key:
+                                      type: string
+                                      minLength: 1
+                                      allowEmptyValue: false
+                                    value:
+                                      type: string
+                                      minLength: 1
+                                      allowEmptyValue: false
                               experimentImage:
                                 type: string
                               env:
@@ -318,12 +353,13 @@ spec:
                                               type: string
                                             divisor:
                                               anyOf:
-                                                - type: integer
-                                                - type: string
+                                              - type: integer
+                                              - type: string
                                               description: Specifies the output format
                                                 of the exposed resources, defaults to
                                                 "1"
                                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                              x-kubernetes-int-or-string: true
                                             resource:
                                               description: 'Required: resource to select'
                                               type: string
@@ -374,7 +410,7 @@ spec:
                                       type: string
                                     mountPath:
                                       type: string
-                              experimentannotation:
+                              experimentAnnotations:
                                 type: object
                                 additionalProperties:
                                   type: string
@@ -387,6 +423,29 @@ spec:
                                       type: string
                                       minLength: 1
                                       allowEmptyValue: false
+                              tolerations:
+                                description: Pod's tolerations.
+                                items:
+                                  description: The pod with this Toleration tolerates any taint matches the <key,value,effect> using the matching operator <operator>.
+                                  properties:
+                                    effect:
+                                      description: Effect to match. Empty means all effects.
+                                      type: string
+                                    key:
+                                      description: Taint key the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists.
+                                      type: string
+                                    operator:
+                                      description: Operators are Exists or Equal. Defaults to Equal.
+                                      type: string
+                                    tolerationSeconds:
+                                      description: Period of time the toleration tolerates the taint.
+                                      format: int64
+                                      type: integer
+                                    value:
+                                      description: If the operator is Exists, the value should be empty, otherwise just a regular string.
+                                      type: string
+                                  type: object
+                                type: array
             schedule:
               oneOf:
               - required:

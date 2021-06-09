@@ -33,6 +33,30 @@ type ChaosResultSpec struct {
 	InstanceID string `json:"instance,omitempty"`
 }
 
+// ResultPhase is typecasted to string for supporting the values below.
+type ResultPhase string
+
+const (
+	// ResultPhaseRunning is phase of chaosresult which is in running state
+	ResultPhaseRunning ResultPhase = "Running"
+	// ResultPhaseCompleted is phase of chaosresult which is in completed state
+	ResultPhaseCompleted ResultPhase = "Completed"
+	// ResultPhaseStopped is phase of chaosresult which is in stopped state
+	ResultPhaseStopped ResultPhase = "Stopped"
+)
+
+// ResultVerdict is typecasted to string for supporting the values below.
+type ResultVerdict string
+
+const (
+	// ResultVerdictPassed is verdict of chaosresult when experiment passed
+	ResultVerdictPassed ResultVerdict = "Pass"
+	// ResultVerdictFailed is verdict of chaosresult when experiment failed
+	ResultVerdictFailed ResultVerdict = "Fail"
+	// ResultVerdictFailed is verdict of chaosresult when experiment aborted
+	ResultVerdictStopped ResultVerdict = "Stopped"
+)
+
 // ChaosResultStatus defines the observed state of ChaosResult
 // +k8s:openapi-gen=true
 type ChaosResultStatus struct {
@@ -41,7 +65,7 @@ type ChaosResultStatus struct {
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 
 	// ExperimentStatus contains the status,verdict of the experiment
-	ExperimentStatus TestStatus `json:"experimentstatus"`
+	ExperimentStatus TestStatus `json:"experimentStatus"`
 	// ProbeStatus contains the status of the probe
 	ProbeStatus []ProbeStatus `json:"probeStatus,omitempty"`
 	// History contains cumulative values of verdicts
@@ -50,9 +74,17 @@ type ChaosResultStatus struct {
 
 // HistoryDetails contains cumulative values of verdicts
 type HistoryDetails struct {
-	PassedRuns  int `json:"passedRuns"`
-	FailedRuns  int `json:"failedRuns"`
-	StoppedRuns int `json:"stoppedRuns"`
+	PassedRuns  int             `json:"passedRuns"`
+	FailedRuns  int             `json:"failedRuns"`
+	StoppedRuns int             `json:"stoppedRuns"`
+	Targets     []TargetDetails `json:"targets,omitempty"`
+}
+
+// TargetDetails contains target details for the experiment and the chaos status
+type TargetDetails struct {
+	Target      string `json:"target,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	ChaosStatus string `json:"chaosStatus,omitempty"`
 }
 
 // ProbeStatus defines information about the status and result of the probes
@@ -68,9 +100,9 @@ type ProbeStatus struct {
 // TestStatus defines information about the status and results of a chaos experiment
 type TestStatus struct {
 	// Phase defines whether an experiment is running or completed
-	Phase string `json:"phase"`
+	Phase ResultPhase `json:"phase"`
 	// Verdict defines whether an experiment result is pass or fail
-	Verdict string `json:"verdict"`
+	Verdict ResultVerdict `json:"verdict"`
 	// FailStep defines step where the experiments fails
 	FailStep string `json:"failStep,omitempty"`
 	// ProbeSuccessPercentage defines the score of the probes

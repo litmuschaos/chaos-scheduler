@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4
-	github.com/litmuschaos/chaos-operator v0.0.0-20210224131102-ca6a465ed348
+	github.com/litmuschaos/chaos-operator v0.0.0-20210601045805-bab1c1c4b082
 	github.com/operator-framework/operator-sdk v0.15.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/pflag v1.0.5
