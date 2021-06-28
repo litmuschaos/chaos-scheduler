@@ -15,11 +15,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func schedule(schedulerReconcile *reconcileScheduler, scheduler *chaosTypes.SchedulerInfo) (reconcile.Result, error) {
+func schedule(schedulerReconcile *reconcileScheduler, scheduler *chaosTypes.SchedulerInfo, request reconcile.Request) (reconcile.Result, error) {
 
-	if scheduler.Instance.Spec.Schedule.Now == true {
+	if scheduler.Instance.Spec.Schedule.Now {
 		schedulerReconcile.reqLogger.Info("Current scheduler type derived is ", "schedulerType", "now")
-		return schedulerReconcile.createForNowAndOnce(scheduler)
+		return schedulerReconcile.createForNowAndOnce(scheduler, request)
 
 	} else if scheduler.Instance.Spec.Schedule.Once != nil {
 		schedulerReconcile.reqLogger.Info("Current scheduler type derived is ", "schedulerType", "once")
@@ -28,9 +28,8 @@ func schedule(schedulerReconcile *reconcileScheduler, scheduler *chaosTypes.Sche
 
 		if startDuration.Seconds() < 0 {
 			if scheduler.Instance.Spec.Schedule.Once.ExecutionTime.Time.Before(scheduleTime) {
-				return schedulerReconcile.createForNowAndOnce(scheduler)
+				return schedulerReconcile.createForNowAndOnce(scheduler, request)
 			}
-			schedulerReconcile.reqLogger.Info("ExecutionTime elapsed before the schedule creation")
 		}
 		schedulerReconcile.reqLogger.Info("Time left to schedule the engine", "Duration", startDuration)
 		return reconcile.Result{RequeueAfter: startDuration}, nil
@@ -55,9 +54,8 @@ func schedule(schedulerReconcile *reconcileScheduler, scheduler *chaosTypes.Sche
 
 		scheduleTime := time.Now()
 		startDuration := startTime.Local().Sub(scheduleTime)
-
 		if startDuration.Seconds() < 0 {
-			return schedulerReconcile.createEngineRepeat(scheduler)
+			return schedulerReconcile.createEngineRepeat(scheduler, request)
 		}
 		schedulerReconcile.reqLogger.Info("Time left to schedule the engine", "Duration", startDuration)
 		return reconcile.Result{RequeueAfter: startDuration}, nil
@@ -78,6 +76,9 @@ func getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) *operatorV1.ChaosEngine
 		"app":      "chaos-engine",
 		"chaosUID": string(cs.Instance.UID),
 	}
+	for index, element := range cs.Instance.Labels {
+		labels[index] = element
+	}
 
 	engine := &operatorV1.ChaosEngine{}
 
@@ -86,6 +87,10 @@ func getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) *operatorV1.ChaosEngine
 	engine.SetOwnerReferences(ownerReferences)
 	engine.SetLabels(labels)
 
+	engine.Name = cs.Instance.Name
+	engine.Namespace = cs.Instance.Namespace
+	engine.Labels = labels
+	engine.Annotations = cs.Instance.Annotations
 	engine.Spec = cs.Instance.Spec.EngineTemplateSpec
 	engine.Spec.EngineState = operatorV1.EngineStateActive
 
