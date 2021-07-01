@@ -24,9 +24,9 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 		return reconcile.Result{}, err
 	}
 
-	if err := schedulerReconcile.UpdateSchedulerStatus(cs, request); err != nil {
-		schedulerReconcile.reqLogger.Error(err, "error updating status")
-		return reconcile.Result{}, err
+	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
+		schedulerReconcile.reqLogger.Error(errUpdate, "error updating status")
+		return reconcile.Result{}, errUpdate
 	}
 
 	timeRange := cs.Instance.Spec.Schedule.Repeat.TimeRange
@@ -138,6 +138,7 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.Sch
 	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); err != nil {
 		return reconcile.Result{}, err
 	}
+	time.Sleep(1 * time.Second)
 
 	return reconcile.Result{}, nil
 }

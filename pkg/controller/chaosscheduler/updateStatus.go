@@ -85,6 +85,8 @@ func IsEngineFinished(j *operatorV1.ChaosEngine) bool {
 func (schedulerReconcile *reconcileScheduler) UpdateSchedulerStatus(cs *chaosTypes.SchedulerInfo, request reconcile.Request) error {
 	cs.Instance.Status.Schedule.Status = schedulerV1.StatusCompleted
 	cs.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
+	cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
+	cs.Instance.Status.Active = nil
 	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); k8serrors.IsConflict(err) {
 		return retry.
 			Times(uint(5)).
@@ -95,9 +97,12 @@ func (schedulerReconcile *reconcileScheduler) UpdateSchedulerStatus(cs *chaosTyp
 					return err
 				}
 				scheduler.Instance.Status.Schedule.Status = schedulerV1.StatusCompleted
+				scheduler.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
 				scheduler.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
+				scheduler.Instance.Status.Active = nil
 				return schedulerReconcile.r.client.Update(context.TODO(), scheduler.Instance)
 			})
 	}
+	time.Sleep(1 * time.Second)
 	return nil
 }
