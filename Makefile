@@ -55,6 +55,16 @@ test:
 	@echo "------------------"
 	@go test ./... -v 
 
+.PHONY: unused-package-check
+unused-package-check:
+	@echo "------------------"
+	@echo "--> Check unused packages for the chaos-operator"
+	@echo "------------------"
+	@tidy=$$(go mod tidy); \
+	if [ -n "$${tidy}" ]; then \
+		echo "go mod tidy checking failed!"; echo "$${tidy}"; echo; \
+	fi
+
 .PHONY: build-chaos-scheduler 
 build-chaos-scheduler: 
 	@echo "------------------"
@@ -62,13 +72,16 @@ build-chaos-scheduler:
 	@echo "------------------"
 	@docker buildx build --file build/Dockerfile --progress plane --no-cache --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
 
+.PHONY: push-chaos-scheduler
+push-chaos-scheduler:
+	@echo "------------------------------"
+	@echo "--> Pushing image" 
+	@echo "------------------------------"
+	@docker buildx build --file build/Dockerfile --progress plane --no-cache --push --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
+
 .PHONY: build-amd64
 build-amd64:
 	@echo "--------------------------------------------"
 	@echo "--> Build chaos-scheduler amd-64 docker image"
 	@echo "--------------------------------------------"
 	sudo docker build --file build/Dockerfile --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) . --build-arg TARGETARCH=amd64
-
-.PHONY: push-chaos-scheduler
-push-chaos-scheduler:
-	@docker buildx build --file build/Dockerfile --progress plane --no-cache --push --platform linux/arm64,linux/amd64 --tag $(REGISTRY)/$(IMG_NAME):$(DOCKER_TAG) .
