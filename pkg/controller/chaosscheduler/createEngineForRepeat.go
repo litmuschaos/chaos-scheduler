@@ -219,7 +219,7 @@ func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *chaosTypes.Sche
 			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
 			return cron, time.Minute * time.Duration(interval), nil
 		}
-		cron := fmt.Sprintf("* %s/%d * * %s", includedHours, interval, includedDays)
+		cron := fmt.Sprintf("0 %s/%d * * %s", includedHours, interval, includedDays)
 		schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
 		return cron, time.Hour * time.Duration(interval), nil
 	}
