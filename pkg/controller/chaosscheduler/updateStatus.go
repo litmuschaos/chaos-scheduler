@@ -48,6 +48,7 @@ func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInf
 		if found := childrenJobs[j.UID]; !found {
 			r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "MissingEngine", "Active engine went missing: %v", j.Name)
 			deleteFromActiveList(cs, j.UID)
+			cs.Instance.Status.LastScheduleCompletionTime = &metav1.Time{Time: time.Now()}
 		}
 	}
 
