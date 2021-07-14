@@ -9,7 +9,7 @@ PACKAGES = $(shell go list ./...)
 # docker info
 DOCKER_REPO ?= litmuschaos
 DOCKER_IMAGE ?= chaos-scheduler
-DOCKER_TAG ?= latest
+DOCKER_TAG ?= ci
 
 .PHONY: all
 all: deps format lint build test dockerops

@@ -4,15 +4,16 @@ go 1.13
 
 require (
 	github.com/go-logr/logr v0.1.0
-	github.com/go-openapi/spec v0.19.4
-	github.com/litmuschaos/chaos-operator v0.0.0-20210601045805-bab1c1c4b082
+	github.com/go-openapi/spec v0.19.7
+	github.com/litmuschaos/chaos-operator v0.0.0-20210610071657-a58dbd939e73
+	github.com/litmuschaos/litmus-go v0.0.0-20210629061430-a87a43801fc4
 	github.com/operator-framework/operator-sdk v0.15.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/pflag v1.0.5
 	k8s.io/api v0.17.3
 	k8s.io/apimachinery v0.17.3
 	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
+	k8s.io/kube-openapi v0.0.0-20200121204235-bf4fb3bd569c
 	sigs.k8s.io/controller-runtime v0.4.0
 )
 
