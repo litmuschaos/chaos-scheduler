@@ -36,32 +36,35 @@ ensuring these also are removed upon deletion of the ChaosSchedule CR.
 
 ### Sample ChaosSchedule for reference:
 
-  ```yaml
+```yaml
 apiVersion: litmuschaos.io/v1alpha1
 kind: ChaosSchedule
 metadata:
   name: schedule-nginx
-  namespace: litmus
 spec:
   schedule:
     repeat:
-      executionTime: "2020-05-11T20:30:00Z"   #should be set for type=once
-      startTime: "2020-05-12T05:47:00Z"   #should be modified according to current UTC Time
-      endTime: "2020-05-12T05:52:00Z"   #should be modified according to current UTC Time
-      minChaosInterval: "2m"   #format should be like "10m" or "2h" accordingly for minute and hours
-      instanceCount: "2"
-      includedDays: "Mon,Tue,Wed"
+      timeRange:
+        startTime: "2020-05-12T05:47:00Z"   #should be modified according to current UTC Time, for type=repeat
+        endTime: "2020-09-13T02:58:00Z"   #should be modified according to current UTC Time, for type=repeat
+      properties:
+        minChaosInterval: "2m"   #format should be like "10m" or "2h" accordingly for minutes and hours, for type=repeat
+      workHours:
+        includedHours: 0-12
+      workDays:
+        includedDays: "Mon,Tue,Wed,Sat,Sun" #should be set for type=repeat
   engineTemplateSpec:
     appinfo:
       appns: 'default'
       applabel: 'app=nginx'
       appkind: 'deployment'
     # It can be true/false
-    annotationCheck: 'true'
+    annotationCheck: 'false'
+    # It can be active/stop
+    engineState: 'active'
     #ex. values: ns1:name=percona,ns2:run=nginx
     auxiliaryAppInfo: ''
     chaosServiceAccount: pod-delete-sa
-    monitoring: false
     # It can be delete/retain
     jobCleanUpPolicy: 'delete'
     experiments:
@@ -80,7 +83,7 @@ spec:
               # pod failures without '--force' & default terminationGracePeriodSeconds
               - name: FORCE
                 value: 'false'
-  ```
+```
 
 ## What is a chaos engine?
 

@@ -14,7 +14,7 @@ import (
 	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
 )
 
-func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes.SchedulerInfo) (reconcile.Result, error) {
+func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes.SchedulerInfo, request reconcile.Request) (reconcile.Result, error) {
 
 	err := schedulerReconcile.r.updateActiveStatus(cs)
 	if err != nil {
@@ -32,13 +32,8 @@ func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes
 		schedulerReconcile.reqLogger.Info("Creating a new engine", "Pod.Namespace", cs.Instance.Name, "Pod.Name", cs.Instance.Namespace)
 
 		engine = getEngineFromTemplate(cs)
-		engine.Name = cs.Instance.Name
-		engine.Namespace = cs.Instance.Namespace
-		engine.Labels = cs.Instance.Labels
-		engine.Annotations = cs.Instance.Annotations
 
-		err = schedulerReconcile.r.client.Create(context.TODO(), engine)
-		if err != nil {
+		if err = schedulerReconcile.r.client.Create(context.TODO(), engine); err != nil {
 			schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedCreate", "Error creating engine: %v", err)
 			return reconcile.Result{}, err
 		}
@@ -61,7 +56,7 @@ func (schedulerReconcile *reconcileScheduler) createForNowAndOnce(cs *chaosTypes
 	} else if IsEngineFinished(engine) {
 		cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
 		cs.Instance.Status.Schedule.EndTime = &currentTime
-		if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); err != nil {
+		if err := schedulerReconcile.UpdateSchedulerStatus(cs, request); err != nil {
 			return reconcile.Result{}, err
 		}
 	}

@@ -11,7 +11,7 @@ jobs:
       # Install golang
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.14
+          go-version: 1.16
 
       # Checkout to the latest commit
       # On specific directory/path
@@ -42,7 +42,7 @@ jobs:
       - name: Build Docker Image
         env:
           DOCKER_REPO: litmuschaos
-          DOCKER_IMAGE: chaos-schedulerr
+          DOCKER_IMAGE: chaos-scheduler
           DOCKER_TAG: ci
         run: |
           make build-chaos-scheduler

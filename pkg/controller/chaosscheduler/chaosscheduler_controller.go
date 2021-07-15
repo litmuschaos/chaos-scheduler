@@ -24,8 +24,6 @@ import (
 	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
 )
 
-const finalizer = "chaosschedule.litmuschaos.io/finalizer"
-
 var _ reconcile.Reconciler = &ReconcileChaosScheduler{}
 
 // ReconcileChaosScheduler reconciles a ChaosScheduler object
@@ -123,20 +121,14 @@ func (r *ReconcileChaosScheduler) Reconcile(request reconcile.Request) (reconcil
 
 	switch scheduler.Instance.Spec.ScheduleState {
 	case "", schedulerV1.StateActive:
-		{
-			return schedulerReconcile.reconcileForCreationAndRunning(scheduler)
-		}
+		return schedulerReconcile.reconcileForCreationAndRunning(scheduler, request)
 	case schedulerV1.StateCompleted:
-		{
-			if !checkScheduleStatus(scheduler, schedulerV1.StatusCompleted) {
-				return schedulerReconcile.reconcileForComplete(scheduler, request)
-			}
+		if !checkScheduleStatus(scheduler, schedulerV1.StatusCompleted) {
+			return schedulerReconcile.reconcileForComplete(scheduler, request)
 		}
 	case schedulerV1.StateHalted:
-		{
-			if !checkScheduleStatus(scheduler, schedulerV1.StatusHalted) {
-				return schedulerReconcile.reconcileForHalt(scheduler, request)
-			}
+		if !checkScheduleStatus(scheduler, schedulerV1.StatusHalted) {
+			return schedulerReconcile.reconcileForHalt(scheduler, request)
 		}
 	}
 	return reconcile.Result{}, nil
@@ -168,15 +160,15 @@ func (schedulerReconcile *reconcileScheduler) reconcileForComplete(cs *chaosType
 	cs.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
 	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance, &opts); err != nil {
 		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "ScheduleCompleted", "Cannot update status as completed")
-		return reconcile.Result{}, fmt.Errorf("Unable to update chaosSchedule for status completed, due to error: %v", err)
+		return reconcile.Result{}, fmt.Errorf("unable to update chaosSchedule for status completed, due to error: %v", err)
 	}
 	schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "ScheduleCompleted", "Schedule completed successfully")
 	return reconcile.Result{}, nil
 }
 
-func (schedulerReconcile *reconcileScheduler) reconcileForCreationAndRunning(cs *chaosTypes.SchedulerInfo) (reconcile.Result, error) {
+func (schedulerReconcile *reconcileScheduler) reconcileForCreationAndRunning(cs *chaosTypes.SchedulerInfo, request reconcile.Request) (reconcile.Result, error) {
 
-	reconcileRes, err := schedule(schedulerReconcile, cs)
+	reconcileRes, err := schedule(schedulerReconcile, cs, request)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

@@ -1,6 +1,6 @@
 # Multi-stage docker build
 # Build stage
-FROM golang:1.14 AS builder
+FROM golang:1.16 AS builder
 
 LABEL maintainer="LitmusChaos"
 
@@ -17,7 +17,7 @@ RUN go env
 RUN CGO_ENABLED=0 go build -o /output/chaos-scheduler -v ./cmd/manager/
 
 # Packaging stage
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.3
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.4
 
 LABEL maintainer="LitmusChaos"
 
