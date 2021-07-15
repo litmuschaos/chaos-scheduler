@@ -14,10 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	schedulerV1 "github.com/litmuschaos/chaos-scheduler/pkg/apis/litmuschaos/v1alpha1"
-	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
+	"github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
 )
 
-func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.SchedulerInfo) (reconcile.Result, error) {
+func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *types.SchedulerInfo, request reconcile.Request) (reconcile.Result, error) {
 
 	err := schedulerReconcile.r.updateActiveStatus(cs)
 	if err != nil {
@@ -25,7 +25,6 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 	}
 
 	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-		schedulerReconcile.reqLogger.Info("schedule ", "instance", cs.Instance)
 		schedulerReconcile.reqLogger.Error(errUpdate, "error updating status")
 		return reconcile.Result{}, errUpdate
 	}
@@ -36,9 +35,10 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 		if endTime != nil && metav1.Now().After(endTime.Time) {
 
 			schedulerReconcile.reqLogger.Info("end time already passed", "endTime", endTime)
-			cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
-			if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-				return reconcile.Result{Requeue: true}, errUpdate
+
+			if err := schedulerReconcile.UpdateSchedulerStatus(cs, request); err != nil {
+				schedulerReconcile.reqLogger.Error(err, "error updating status")
+				return reconcile.Result{}, err
 			}
 			return reconcile.Result{}, nil
 		}
@@ -55,40 +55,42 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *chaosTypes.
 		return reconcile.Result{}, err
 	}
 
-	scheduledTime, errNew := getRecentUnmetScheduleTime(cs, cronString)
+	scheduledTime, errNew := schedulerReconcile.getRecentUnmetScheduleTime(cs, cronString)
 	if errNew != nil {
 		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedNeedsStart", "Cannot determine if engine needs to be started: %v", errNew)
 		return reconcile.Result{}, errNew
 	}
 
-	if scheduledTime == nil {
-		schedulerReconcile.reqLogger.Info("not found any scheduled time, reconciling after 10 seconds")
-		return reconcile.Result{RequeueAfter: time.Second * 10}, nil
-	}
-	// TODO: set the concurencyPolicy and add the  different cases to be handled
-	// For now taking "Forbid" as by default
-	// if cs.Instance.Spec.ConcurrencyPolicy == schedulerV1.ForbidConcurrent && len(cs.Instance.Status.Active) > 0 {
-	if len(cs.Instance.Status.Active) > 0 {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "MissEngine", "Missed scheduled time to start an engine because of an active engine at: %s", scheduledTime.Format(time.RFC1123Z))
-		durationForNextScheduledTime := scheduledTime.Sub(time.Now())
-		return reconcile.Result{RequeueAfter: durationForNextScheduledTime}, nil
+	wait := time.Until(scheduledTime)
+
+	if timeRange != nil && timeRange.EndTime != nil && time.Until(timeRange.EndTime.Time) < wait {
+		return reconcile.Result{RequeueAfter: time.Until(timeRange.EndTime.Time)}, nil
 	}
 
-	_, err = schedulerReconcile.createNewEngine(cs, *scheduledTime)
+	if wait > 0 {
+		schedulerReconcile.reqLogger.Info("Hold on, time left to schedule the engine", "Duration(seconds)", wait.Seconds())
+		return reconcile.Result{RequeueAfter: wait}, nil
+	}
+
+	// TODO: set the concurencyPolicy and add the  different cases to be handled
+	// For now taking "Forbid" as by default
+	if len(cs.Instance.Status.Active) > 0 {
+		schedulerReconcile.reqLogger.Info("The next scheduled is delayed as the older chaosengine is not completed yet")
+		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "MissEngine", "Missed scheduled time to start an engine because of an active engine at: %s", scheduledTime.Format(time.RFC1123Z))
+		return reconcile.Result{RequeueAfter: wait}, nil
+	}
+
+	_, err = schedulerReconcile.createNewEngine(cs, scheduledTime)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	schedulerReconcile.reqLogger.Info("Will Reconcile later", "after", duration.Minutes())
 	return reconcile.Result{RequeueAfter: duration}, nil
 }
 
-func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.SchedulerInfo, scheduledTime time.Time) (reconcile.Result, error) {
+func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *types.SchedulerInfo, scheduledTime time.Time) (reconcile.Result, error) {
 
 	engineReq := getEngineFromTemplate(cs)
 	engineReq.Name = fmt.Sprintf("%s-%d", cs.Instance.Name, getTimeHash(scheduledTime))
-	engineReq.Namespace = cs.Instance.Namespace
-	engineReq.Labels = cs.Instance.Labels
-	engineReq.Annotations = cs.Instance.Annotations
 
 	errCreate := schedulerReconcile.r.client.Create(context.TODO(), engineReq)
 	if errCreate != nil {
@@ -128,66 +130,180 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *chaosTypes.Sch
 	}
 	cs.Instance.Status.Schedule.StartTime = startTime
 
-	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-		return reconcile.Result{}, errUpdate
+	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); err != nil {
+		return reconcile.Result{}, err
 	}
+	time.Sleep(1 * time.Second)
 
 	return reconcile.Result{}, nil
 }
 
-func getRecentUnmetScheduleTime(cs *chaosTypes.SchedulerInfo, cronString string) (*time.Time, error) {
+func (schedulerReconcile *reconcileScheduler) getRecentUnmetScheduleTime(cs *types.SchedulerInfo, cronString string) (time.Time, error) {
 
 	now := time.Now()
 	cronSchedule, err := cron.ParseStandard(cronString)
 	if err != nil {
-		return nil, fmt.Errorf("unparseable schedule: %s : %s", cronString, err)
+		return time.Time{}, fmt.Errorf("unparseable schedule: %s : %s", cronString, err)
 	}
-
 	timeRange := cs.Instance.Spec.Schedule.Repeat.TimeRange
-
-	var earliestTime time.Time
+	// handles all the schedules except first schedule
 	if cs.Instance.Status.LastScheduleTime != nil {
-		earliestTime = cs.Instance.Status.LastScheduleTime.Time
-	} else if timeRange != nil && timeRange.StartTime != nil {
-		// If none found, then this is either a recently created schedule,
-		// or the active/completed info was somehow lost (it may need to be recreated),
-		// or that we have started a engine, but have not noticed it yet (distributed
-		//	systems can have arbitrary delays).
-		// Since we are checking the startTime with currentTime. It is
-		// possible that we might miss a schedule at the TIME of CREATION
-		// by just a few seconds because of the slight delay in reconciliation process.
-		earliestTime = timeRange.StartTime.Time.Add(time.Minute * -1)
+		var previousTime *time.Time
+		earliestTime := cs.Instance.Status.LastScheduleTime.Time
+		for t := cronSchedule.Next(earliestTime); !t.After(now); t = cronSchedule.Next(t) {
+			temp := t
+			previousTime = &temp
+		}
+		if previousTime == nil {
+			return cronSchedule.Next(earliestTime), nil
+		}
+		lastUpdatedTime := cs.Instance.Status.LastScheduleCompletionTime
+		if lastUpdatedTime != nil {
+			if lastUpdatedTime.Sub(*previousTime) >= 0 {
+				return cronSchedule.Next(*previousTime), nil
+			}
+		}
+		return *previousTime, nil
+	} else if timeRange != nil && timeRange.StartTime != nil && !cs.Instance.GetCreationTimestamp().Time.After(timeRange.StartTime.Time) {
+		return schedulerReconcile.firstScheduleTime(cs, timeRange.StartTime.Time, cronSchedule)
 	} else {
-		earliestTime = cs.Instance.GetCreationTimestamp().Time
+		return schedulerReconcile.firstScheduleTime(cs, cs.Instance.GetCreationTimestamp().Time, cronSchedule)
 	}
-
-	if earliestTime.After(now) {
-		return nil, nil
-	}
-	var previousTime *time.Time
-
-	for t := cronSchedule.Next(earliestTime); !t.After(now); t = cronSchedule.Next(t) {
-		temp := t
-		previousTime = &temp
-	}
-	// cs.Instance.Status.Schedule.ExpectedNextRunTime = metav1.Time{Time: sched.Next(*previousTime)}
-	return previousTime, nil
 }
 
-func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *chaosTypes.SchedulerInfo) (string, time.Duration, error) {
+// it derive the first scheduled time for the scheduler based on the cron string
+func (schedulerReconcile *reconcileScheduler) firstScheduleTime(cs *types.SchedulerInfo, earliestTime time.Time, cronSchedule cron.Schedule) (time.Time, error) {
+
+	schedule := cs.Instance.Spec.Schedule.Repeat
+
+	// it checks if present day is included in the includedWeekdays list
+	if schedule.WorkDays != nil && schedule.WorkDays.IncludedDays != "" {
+		isPossibleNow, err := isWeekdayPossible(schedule.WorkDays.IncludedDays)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if !isPossibleNow {
+			nextTime := cronSchedule.Next(earliestTime)
+			if !nextTime.After(time.Now()) {
+				nextTime = time.Now()
+			}
+			return nextTime, nil
+		}
+	}
+
+	// it checks if current hour is included in the includedHours list
+	if schedule.WorkHours != nil && schedule.WorkHours.IncludedHours != "" {
+		isPossibleNow, err := isHoursPossible(schedule.WorkHours.IncludedHours)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if !isPossibleNow {
+			nextTime := cronSchedule.Next(earliestTime)
+			if !nextTime.After(time.Now()) {
+				nextTime = time.Now()
+			}
+			return nextTime, nil
+		}
+	}
+
+	return time.Now(), nil
+}
+
+// it checks if provided week day is listed in the includeWeekdays list
+func isWeekdayPossible(includedDays string) (bool, error) {
+	finalDays := [7]int{}
+	days := strings.Split(includedDays, ",")
+	for _, d := range days {
+		start, end, err := parseWeekdays(d)
+		if err != nil {
+			return false, err
+		}
+		for i := start; i <= end; i++ {
+			finalDays[i] = 1
+		}
+	}
+
+	currWeekday := time.Now().Weekday()
+	if finalDays[currWeekday] == 1 {
+		return true, nil
+	}
+	return false, nil
+}
+
+// it checks if provided hour is included in the includedHours list
+func isHoursPossible(includedHours string) (bool, error) {
+	finalHours := [24]int{}
+	hours := strings.Split(includedHours, ",")
+	for _, h := range hours {
+		start, end, err := parseCronData(h)
+		if err != nil {
+			return false, err
+		}
+		for i := start; i <= end; i++ {
+			finalHours[i] = 1
+		}
+	}
+
+	currHour := time.Now().Hour()
+	if finalHours[currHour] == 1 {
+		return true, nil
+	}
+	return false, nil
+}
+
+// it parse the possible weekdays included in the inputs
+func parseWeekdays(data string) (int, int, error) {
+	var start, end int
+	if strings.Contains(data, "-") {
+		if len(data) <= 3 {
+			return parseCronData(data)
+		}
+		fieldRange := strings.Split(data, "-")
+		if len(fieldRange) < 2 {
+			return 0, 0, fmt.Errorf("provided the correct input range, range: %v", data)
+		}
+		start = types.WeekDays[strings.ToLower(strings.TrimSpace(fieldRange[0]))]
+		end = types.WeekDays[strings.ToLower(strings.TrimSpace(fieldRange[1]))]
+	} else {
+		if len(data) <= 1 {
+			return parseCronData(data)
+		}
+		start = types.WeekDays[strings.ToLower(data)]
+		end = types.WeekDays[strings.ToLower(data)]
+	}
+	return start, end, nil
+}
+
+// it parse the input range provided in int format
+func parseCronData(data string) (int, int, error) {
+	var start, end string
+	if strings.Contains(data, "-") {
+		fieldRange := strings.Split(data, "-")
+		if len(fieldRange) < 2 {
+			return 0, 0, fmt.Errorf("provided the correct input range, range: %v", data)
+		}
+		start = strings.TrimSpace(fieldRange[0])
+		end = strings.TrimSpace(fieldRange[1])
+	} else {
+		start = data
+		end = data
+	}
+	startInt, err := strconv.Atoi(start)
+	if err != nil {
+		return 0, 0, err
+	}
+	endInt, err := strconv.Atoi(end)
+	if err != nil {
+		return 0, 0, err
+	}
+	return startInt, endInt, nil
+}
+
+func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *types.SchedulerInfo) (string, time.Duration, error) {
 
 	interval, err := fetchInterval(cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval)
 	if err != nil {
 		return "", time.Duration(0), errors.New("error in parsing minChaosInterval(make sure to include 'm' or 'h' suffix for minutes and hours respectively)")
-	}
-
-	var startTime *metav1.Time
-	if cs.Instance.Spec.Schedule.Repeat.TimeRange != nil {
-		startTime = cs.Instance.Spec.Schedule.Repeat.TimeRange.StartTime
-	}
-
-	if startTime == nil {
-		startTime = &cs.Instance.CreationTimestamp
 	}
 
 	/* includedDays will be given in form comma seperated
@@ -219,11 +335,11 @@ func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *chaosTypes.Sche
 			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
 			return cron, time.Minute * time.Duration(interval), nil
 		}
-		cron := fmt.Sprintf("* %s/%d * * %s", includedHours, interval, includedDays)
+		cron := fmt.Sprintf("0 %s/%d * * %s", includedHours, interval, includedDays)
 		schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
 		return cron, time.Hour * time.Duration(interval), nil
 	}
-	return "", time.Duration(0), errors.New("MinChaosInterval  not found")
+	return "", time.Duration(0), errors.New("MinChaosInterval not found")
 }
 
 func fetchInterval(minChaosInterval string) (int, error) {

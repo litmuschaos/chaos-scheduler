@@ -14,8 +14,14 @@ metadata:
   labels:
     name: scheduler
 rules:
-- apiGroups: ["","apps","batch","litmuschaos.io"]
-  resources: ["pods","jobs","deployments","daemonsets","statefulsets","events","configmaps","services","chaosengines","chaosexperiments","chaosresults","chaosschedules"]
+- apiGroups: [""]
+  resources: ["pods","events", "configmaps","services"]
+  verbs: ["create","get","list","delete","update","patch"]
+- apiGroups: ["apps"]
+  resources: ["replicasets","deployments"]
+  verbs: ["get","list"]
+- apiGroups: ["litmuschaos.io"]
+  resources: ["chaosengines","chaosschedules"]
   verbs: ["get","create","update","patch","delete","list","watch","deletecollection"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1

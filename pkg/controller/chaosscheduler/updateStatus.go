@@ -2,13 +2,19 @@ package chaosscheduler
 
 import (
 	"context"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	operatorV1 "github.com/litmuschaos/chaos-operator/pkg/apis/litmuschaos/v1alpha1"
+	schedulerV1 "github.com/litmuschaos/chaos-scheduler/pkg/apis/litmuschaos/v1alpha1"
 	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
+	"github.com/litmuschaos/litmus-go/pkg/utils/retry"
 )
 
 func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInfo) error {
@@ -42,26 +48,11 @@ func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInf
 		if found := childrenJobs[j.UID]; !found {
 			r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "MissingEngine", "Active engine went missing: %v", j.Name)
 			deleteFromActiveList(cs, j.UID)
+			cs.Instance.Status.LastScheduleCompletionTime = &metav1.Time{Time: time.Now()}
 		}
 	}
 
 	return nil
-}
-
-// deleteJob reaps a job, deleting the job, the pods and the reference in the active list
-func (r *ReconcileChaosScheduler) deleteEngine(cs *chaosTypes.SchedulerInfo, engine *operatorV1.ChaosEngine) bool {
-
-	// delete the engine itself...
-	err := r.client.Delete(context.TODO(), engine, []client.DeleteOption{}...)
-	if err != nil {
-		r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedDelete", "Deleted engine: %v", err)
-		return false
-	}
-	// ... and its reference from active list
-	deleteFromActiveList(cs, engine.ObjectMeta.UID)
-	r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulDelete", "Deleted engine %v", engine.Name)
-
-	return true
 }
 
 func deleteFromActiveList(cs *chaosTypes.SchedulerInfo, uid types.UID) {
@@ -89,4 +80,30 @@ func inActiveList(cs chaosTypes.SchedulerInfo, uid types.UID) bool {
 // IsEngineFinished returns whether or not a job has completed successfully or failed.
 func IsEngineFinished(j *operatorV1.ChaosEngine) bool {
 	return j.Status.EngineStatus == operatorV1.EngineStatusCompleted
+}
+
+// UpdateSchedulerStatus updates the scheduler status for the complete
+func (schedulerReconcile *reconcileScheduler) UpdateSchedulerStatus(cs *chaosTypes.SchedulerInfo, request reconcile.Request) error {
+	cs.Instance.Status.Schedule.Status = schedulerV1.StatusCompleted
+	cs.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
+	cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
+	cs.Instance.Status.Active = nil
+	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); k8serrors.IsConflict(err) {
+		return retry.
+			Times(uint(5)).
+			Wait(1 * time.Second).
+			Try(func(attempt uint) error {
+				scheduler, err := schedulerReconcile.r.getChaosSchedulerInstance(request)
+				if err != nil {
+					return err
+				}
+				scheduler.Instance.Status.Schedule.Status = schedulerV1.StatusCompleted
+				scheduler.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
+				scheduler.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
+				scheduler.Instance.Status.Active = nil
+				return schedulerReconcile.r.client.Update(context.TODO(), scheduler.Instance)
+			})
+	}
+	time.Sleep(1 * time.Second)
+	return nil
 }
