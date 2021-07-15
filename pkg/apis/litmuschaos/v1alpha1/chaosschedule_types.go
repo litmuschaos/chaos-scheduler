@@ -100,6 +100,8 @@ type ChaosScheduleStatus struct {
 	Schedule ScheduleStatus `json:"schedule,omitempty"`
 	// LastScheduleTime states the last time an engine was created
 	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty"`
+	// LastScheduleCompletionTime states the last time an engine was completed
+	LastScheduleCompletionTime *metav1.Time `json:"lastScheduleCompletionTime,omitempty"`
 	// Active states the list of chaosengines that are currently running
 	Active []coreV1.ObjectReference `json:"active,omitempty"`
 }
