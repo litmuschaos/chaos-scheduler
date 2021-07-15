@@ -1,4 +1,4 @@
-# Makefile for building Chaos Exporter
+# Makefile for building Chaos Scheduler
 # Reference Guide - https://www.gnu.org/software/make/manual/make.html
 
 IS_DOCKER_INSTALLED = $(shell which docker >> /dev/null 2>&1; echo $$?)
@@ -11,20 +11,18 @@ DOCKER_REPO ?= litmuschaos
 DOCKER_IMAGE ?= chaos-scheduler
 DOCKER_TAG ?= ci
 
-.PHONY: all
-all: deps format lint build test dockerops
-
 .PHONY: help
 help:
 	@echo ""
 	@echo "Usage:-"
-	@echo "\tmake deps      -- sets up dependencies for image build"
-	@echo "\tmake gotasks   -- builds the chaos scheduler binary"
-	@echo "\tmake dockerops -- builds & pushes the chaos scheduler image"
+	@echo "\tmake godeps                  -- sets up dependencies for image build"
+	@echo "\tmake build-chaos-scheduler   -- builds the chaos scheduler image"
+	@echo "\tmake push-chaos-scheduler    -- pushes the chaos scheduler image"
+	@echo "\tmake build-amd64             -- builds the chaos scheduler amd64 image"
 	@echo ""
 
-.PHONY: deps
-deps: _build_check_docker godeps 
+.PHONY: all
+all: godeps build-chaos-scheduler test push-chaos-scheduler
 
 .PHONY: godeps
 godeps:
@@ -33,7 +31,6 @@ godeps:
 	@go get  -v golang.org/x/lint/golint
 	@go get  -v golang.org/x/tools/cmd/goimports
 
-.PHONY: _build_check_docker
 _build_check_docker:
 	@if [ $(IS_DOCKER_INSTALLED) -eq 1 ]; \
 		then echo "" \
@@ -41,34 +38,6 @@ _build_check_docker:
 		&& echo "" \
 		&& exit 1; \
 		fi;
-
-.PHONY: gotasks
-gotasks: format lint build
- 
-.PHONY: format
-format:
-	@echo "------------------"
-	@echo "--> Running go fmt"
-	@echo "------------------"
-	@go fmt $(PACKAGES)
-
-.PHONY: lint
-lint:
-	@echo "------------------"
-	@echo "--> Running golint"
-	@echo "------------------"
-	@golint $(PACKAGES)
-	@echo "------------------"
-	@echo "--> Running go vet"
-	@echo "------------------"
-	@go vet $(PACKAGES)
-
-.PHONY: build  
-build:
-	@echo "------------------"
-	@echo "--> Build Chaos Scheduler"
-	@echo "------------------"
-	@go build -o build/_output/bin/chaos-scheduler -gcflags all=-trimpath=${GOPATH} -asmflags all=-trimpath=${GOPATH} github.com/litmuschaos/chaos-scheduler/cmd/manager
 
 .PHONY: codegen
 codegen:
@@ -86,9 +55,33 @@ test:
 	@echo "------------------"
 	@go test ./... -v 
 
-.PHONY: dockerops 
-dockerops: 
+.PHONY: unused-package-check
+unused-package-check:
 	@echo "------------------"
-	@echo "--> Build & Push chaos-scheduler docker image" 
+	@echo "--> Check unused packages for the chaos-operator"
 	@echo "------------------"
-	sudo docker build . -f build/Dockerfile -t $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+	@tidy=$$(go mod tidy); \
+	if [ -n "$${tidy}" ]; then \
+		echo "go mod tidy checking failed!"; echo "$${tidy}"; echo; \
+	fi
+
+.PHONY: build-chaos-scheduler 
+build-chaos-scheduler: 
+	@echo "------------------"
+	@echo "--> Build chaos-scheduler docker image" 
+	@echo "------------------"
+	@docker buildx build --file build/Dockerfile --progress plane --no-cache --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+.PHONY: push-chaos-scheduler
+push-chaos-scheduler:
+	@echo "------------------------------"
+	@echo "--> Pushing image" 
+	@echo "------------------------------"
+	@docker buildx build --file build/Dockerfile --progress plane --no-cache --push --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+.PHONY: build-amd64
+build-amd64:
+	@echo "--------------------------------------------"
+	@echo "--> Build chaos-scheduler amd-64 docker image"
+	@echo "--------------------------------------------"
+	@sudo docker build --file build/Dockerfile --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) . --build-arg TARGETARCH=amd64
