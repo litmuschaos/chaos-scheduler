@@ -141,9 +141,17 @@ type TimeRange struct {
 //ScheduleRepeatProperties will define the properties needed by the schedule to inject chaos
 type ScheduleRepeatProperties struct {
 	//Minimum Period b/w two iterations of chaos experiments batch run
-	MinChaosInterval string `json:"minChaosInterval,omitempty"`
+	MinChaosInterval *MinChaosInterval `json:"minChaosInterval,omitempty"`
 	//Whether the chaos is to be scheduled at a random time or not
 	Random bool `json:"random,omitempty"`
+}
+
+// MinChaosInterval contains hours and minutes b/w each iterations
+type MinChaosInterval struct {
+	// IntervalHours contains hours b/w each schedule
+	IntervalHours int `json:"intervalHours,omitempty"`
+	// IntervalMins contains mins b/w each schedule
+	IntervalMins int `json:"intervalMins,omitempty"`
 }
 
 //WorkHours specify in which hours of the day chaos is to be injected
