@@ -2,31 +2,22 @@
 # Litmus chaos-scheduler for injecting chaos experiments on Kubernetes
   
 Litmus chaos scheduler is used by Kubernetes application developers and SREs to inject chaos into the applications 
-and Kubernetes infrastructure in a managed fashion. Its objective is to make the process of validation and 
-hardening of application workloads on Kubernetes easy by automating the execution of chaos experiments. A sample chaos 
-injection workflow could be as simple as:
+and Kubernetes infrastructure periodically based on the specified schedule. Perform the following steps to use the chaos scheduler: 
 
 - Install the Litmus infrastructure components (RBAC, CRDs), the scheduler, the operator & Experiment custom resource bundles via helm charts
-- Annotate the application under test (AUT), enabling it for chaos
 - Create a ChaosSchedule custom resource, which describes the ChaosEngine template to be scheduled 
 
 ## What is a chaos scheduler and how is it built?
 
-The Chaos scheduler is a Kubernetes scheduler, which are nothing but custom-controllers with direct access to Kubernetes API
-that can manage the lifecycle of certain resources or applications, while always trying to ensure the resource is in the "desired
-state". The logic that ensures this is commonly called "reconcile" function.
+The Chaos scheduler is a custom-controllers with direct access to Kubernetes API that can manage the lifecycle of certain resources or applications, 
+while always trying to ensure the resource is in the "desired state". The logic that ensures this is commonly called "reconcile" function.
 
-The Chaos scheduler is built using the popular [Operator-SDK](https://github.com/operator-framework/operator-sdk/) framework, 
+The Chaos scheduler is built using [Operator-SDK](https://github.com/operator-framework/operator-sdk/) framework, 
 which provides bootstrap support for new scheduler projects, allowing teams to focus on business/operational logic. 
-
-The Litmus Chaos scheduler helps reconcile the state of the ChaosSchedule, a custom resource that holds the chaos intent 
-specified by a developer/devops engineer against a particular stateless/stateful Kubernetes deployment. The scheduler performs
-specific actions upon CRUD of the ChaosSchedule, its primary resource. The scheduler also defines secondary resources (the 
-ChaosEngine), which are created & managed by it in order to implement the reconcile functions. 
 
 ## What is a chaos schedule?
 
-The ChaosSchedule is the core schema that defines the chaos workflow for a given application. Currently, it defines the following:
+Currently, it defines the following:
 
 - Execution Schedule for the batch run of the experiments
 - Template Spec of ChaosEngine according to which chaos is to be exceuted
