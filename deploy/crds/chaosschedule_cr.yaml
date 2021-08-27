@@ -10,7 +10,8 @@ spec:
         endTime: "2020-09-13T02:58:00Z"   #should be modified according to current UTC Time, for type=repeat
       properties:
         minChaosInterval: 
-          intervalMins: 2
+          minute:
+            everyNthMinute: 2
       workHours:
         includedHours: 0-12
       workDays:

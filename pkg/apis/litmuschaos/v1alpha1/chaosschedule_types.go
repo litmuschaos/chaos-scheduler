@@ -148,10 +148,19 @@ type ScheduleRepeatProperties struct {
 
 // MinChaosInterval contains hours and minutes b/w each iterations
 type MinChaosInterval struct {
-	// IntervalHours contains hours b/w each schedule
-	IntervalHours int `json:"intervalHours,omitempty"`
-	// IntervalMins contains mins b/w each schedule
-	IntervalMins int `json:"intervalMins,omitempty"`
+	Hour   *Hour   `json:"hour,omitempty"`
+	Minute *Minute `json:"minute,omitempty"`
+}
+
+// Hour contains hours and minutes b/w each schedule
+type Hour struct {
+	EveryNthHour    int `json:"everyNthHour,omitempty"`
+	MinuteOfTheHour int `json:"minuteOfTheHour,omitempty"`
+}
+
+// Minute contains minute b/w each schedule
+type Minute struct {
+	EveryNthMinute int `json:"everyNthMinute,omitempty"`
 }
 
 //WorkHours specify in which hours of the day chaos is to be injected

@@ -499,11 +499,21 @@ spec:
                         properties:
                           minChaosInterval:
                             properties:
-                              intervalHours:
-                                type: integer
-                              intervalMins:
-                                type: integer
+                              hour:
+                                properties:
+                                  everyNthHour:
+                                    type: integer
+                                  minuteOfTheHour:
+                                    type: integer
+                                type: object
+                              minute:
+                                properties:
+                                  everyNthMinute:
+                                    type: integer
+                                type: object
                             type: object
+                            minProperties: 1
+                            maxProperties: 1
                           random:
                             type: boolean
                         type: object

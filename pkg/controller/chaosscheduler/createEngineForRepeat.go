@@ -134,7 +134,7 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *types.Schedule
 		return reconcile.Result{}, err
 	}
 	time.Sleep(1 * time.Second)
-
+	schedulerReconcile.reqLogger.Info("ChaosEngine has been created", "ChaosEngine Name", engineReq.Name)
 	return reconcile.Result{}, nil
 }
 
@@ -322,19 +322,17 @@ func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *types.Scheduler
 
 	// One of the minChaosInterval or instances is mandatory to be given
 	minChaosInterval := cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval
-	if minChaosInterval != nil && (minChaosInterval.IntervalMins != 0 || minChaosInterval.IntervalHours != 0) {
-		if minChaosInterval.IntervalMins != 0 && minChaosInterval.IntervalHours == 0 {
-			cron := fmt.Sprintf("*/%d %s * * %s", minChaosInterval.IntervalMins, includedHours, includedDays)
+	if minChaosInterval != nil && (minChaosInterval.Hour != nil || minChaosInterval.Minute != nil) {
+		if minChaosInterval.Minute != nil {
+			cron := fmt.Sprintf("*/%d %s * * %s", minChaosInterval.Minute.EveryNthMinute, includedHours, includedDays)
 			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
-			return cron, time.Minute * time.Duration(minChaosInterval.IntervalMins), nil
-		} else if minChaosInterval.IntervalMins != 0 && minChaosInterval.IntervalHours != 0 {
-			cron := fmt.Sprintf("%d %s/%d * * %s", minChaosInterval.IntervalMins, includedHours, minChaosInterval.IntervalHours, includedDays)
-			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
-			return cron, time.Hour * time.Duration(minChaosInterval.IntervalHours), nil
+			return cron, time.Minute * time.Duration(minChaosInterval.Minute.EveryNthMinute), nil
 		}
-		cron := fmt.Sprintf("0 %s/%d * * %s", includedHours, minChaosInterval.IntervalHours, includedDays)
-		schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
-		return cron, time.Hour * time.Duration(minChaosInterval.IntervalHours), nil
+		if minChaosInterval.Hour != nil {
+			cron := fmt.Sprintf("%d %s/%d * * %s", minChaosInterval.Hour.MinuteOfTheHour, includedHours, minChaosInterval.Hour.EveryNthHour, includedDays)
+			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
+			return cron, time.Hour * time.Duration(minChaosInterval.Hour.EveryNthHour), nil
+		}
 	}
 	return "", time.Duration(0), errors.New("MinChaosInterval not found")
 }
