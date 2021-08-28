@@ -498,8 +498,22 @@ spec:
                       properties:
                         properties:
                           minChaosInterval:
-                            pattern: (([1-6][0-9]|[1-9])m)|(\d+h)
-                            type: string
+                            properties:
+                              hour:
+                                properties:
+                                  everyNthHour:
+                                    type: integer
+                                  minuteOfTheHour:
+                                    type: integer
+                                type: object
+                              minute:
+                                properties:
+                                  everyNthMinute:
+                                    type: integer
+                                type: object
+                            type: object
+                            minProperties: 1
+                            maxProperties: 1
                           random:
                             type: boolean
                         type: object
