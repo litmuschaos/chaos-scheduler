@@ -134,7 +134,7 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *types.Schedule
 		return reconcile.Result{}, err
 	}
 	time.Sleep(1 * time.Second)
-
+	schedulerReconcile.reqLogger.Info("ChaosEngine has been created", "ChaosEngine Name", engineReq.Name)
 	return reconcile.Result{}, nil
 }
 
@@ -301,11 +301,6 @@ func parseCronData(data string) (int, int, error) {
 
 func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *types.SchedulerInfo) (string, time.Duration, error) {
 
-	interval, err := fetchInterval(cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval)
-	if err != nil {
-		return "", time.Duration(0), errors.New("error in parsing minChaosInterval(make sure to include 'm' or 'h' suffix for minutes and hours respectively)")
-	}
-
 	/* includedDays will be given in form comma seperated
 	 * list such as 0,2,4 or Mon,Wed,Sat
 	 * or in the range form such as 2-4 or Mon-Wed
@@ -326,34 +321,20 @@ func (schedulerReconcile *reconcileScheduler) scheduleRepeat(cs *types.Scheduler
 	}
 
 	// One of the minChaosInterval or instances is mandatory to be given
-	if interval != 0 {
-		/* MinChaosInterval will be in form of "10m" or "2h"
-		 * where 'm' or 'h' indicating "minutes" or "hours" respectively
-		 */
-		if strings.Contains(cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval, "m") {
-			cron := fmt.Sprintf("*/%d %s * * %s", interval, includedHours, includedDays)
+	minChaosInterval := cs.Instance.Spec.Schedule.Repeat.Properties.MinChaosInterval
+	if minChaosInterval != nil && (minChaosInterval.Hour != nil || minChaosInterval.Minute != nil) {
+		if minChaosInterval.Minute != nil {
+			cron := fmt.Sprintf("*/%d %s * * %s", minChaosInterval.Minute.EveryNthMinute, includedHours, includedDays)
 			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
-			return cron, time.Minute * time.Duration(interval), nil
+			return cron, time.Minute * time.Duration(minChaosInterval.Minute.EveryNthMinute), nil
 		}
-		cron := fmt.Sprintf("0 %s/%d * * %s", includedHours, interval, includedDays)
-		schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
-		return cron, time.Hour * time.Duration(interval), nil
+		if minChaosInterval.Hour != nil {
+			cron := fmt.Sprintf("%d %s/%d * * %s", minChaosInterval.Hour.MinuteOfTheHour, includedHours, minChaosInterval.Hour.EveryNthHour, includedDays)
+			schedulerReconcile.reqLogger.Info("CronString formed ", "Cron String", cron)
+			return cron, time.Hour * time.Duration(minChaosInterval.Hour.EveryNthHour), nil
+		}
 	}
 	return "", time.Duration(0), errors.New("MinChaosInterval not found")
-}
-
-func fetchInterval(minChaosInterval string) (int, error) {
-	/* MinChaosInterval will be in form of "10m" or "2h"
-	 * where 'm' or 'h' indicating "minutes" or "hours" respectively
-	 */
-	if minChaosInterval == "" {
-		return 0, nil
-	} else if strings.Contains(minChaosInterval, "h") {
-		return strconv.Atoi(strings.Split(minChaosInterval, "h")[0])
-	} else if strings.Contains(minChaosInterval, "m") {
-		return strconv.Atoi(strings.Split(minChaosInterval, "m")[0])
-	}
-	return 0, errors.New("minChaosInterval should be in either minutes or hours and the prefix should be 'm' or 'h' respectively")
 }
 
 // getTimeHash returns Unix Epoch Time
