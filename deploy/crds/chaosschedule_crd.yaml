@@ -45,6 +45,9 @@ spec:
                   annotationCheck:
                     type: string
                     pattern: ^(true|false)$
+                  defaultAppHealthCheck:
+                    type: string
+                    pattern: ^(true|false)$ 
                   appinfo:
                     type: object
                     properties:
@@ -170,8 +173,13 @@ spec:
                                           value:
                                             type: string
                                       source:
-                                        type: string
-                                        minLength: 1
+                                        type: object
+                                        properties:
+                                          image:
+                                            type: string
+                                            minLength: 1
+                                          hostNetwork:
+                                            type: boolean
                                   httpProbe/inputs:
                                     type: object
                                     properties:
@@ -448,6 +456,7 @@ spec:
                                         type: string
                                     type: object
                                   type: array
+
               concurrencyPolicy:
                 type: string
               scheduleState:
