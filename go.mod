@@ -5,8 +5,8 @@ go 1.16
 require (
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.7
-	github.com/litmuschaos/chaos-operator v0.0.0-20210610071657-a58dbd939e73
-	github.com/litmuschaos/litmus-go v0.0.0-20210629061430-a87a43801fc4
+	github.com/litmuschaos/chaos-operator v0.0.0-20210906063757-231a74b4452d
+	github.com/litmuschaos/litmus-go v0.0.0-20210705063441-babf0c4aa57d
 	github.com/operator-framework/operator-sdk v0.15.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/pflag v1.0.5
