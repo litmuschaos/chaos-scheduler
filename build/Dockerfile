@@ -17,19 +17,13 @@ RUN go env
 RUN CGO_ENABLED=0 go build -o /output/chaos-scheduler -v ./cmd/manager/
 
 # Packaging stage
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.4
+# Image source: https://github.com/litmuschaos/test-tools/blob/master/custom/hardened-alpine/infra/Dockerfile
+# The base image is non-root (have litmus user) with default litmus directory.
+FROM litmuschaos/infra-alpine
 
 LABEL maintainer="LitmusChaos"
 
-ENV SCHEDULER=/usr/local/bin/chaos-scheduler \
-    USER_UID=1001 \
-    USER_NAME=chaos-scheduler
-
+ENV SCHEDULER=/usr/local/bin/chaos-scheduler 
 COPY --from=builder /output/chaos-scheduler ${SCHEDULER}
 
-COPY build/bin /usr/local/bin
-RUN  /usr/local/bin/user_setup
-
-ENTRYPOINT ["/usr/local/bin/entrypoint"]
-
-USER ${USER_UID}
+ENTRYPOINT ["/usr/local/bin/chaos-scheduler"]
