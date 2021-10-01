@@ -85,3 +85,10 @@ build-amd64:
 	@echo "--> Build chaos-scheduler amd-64 docker image"
 	@echo "--------------------------------------------"
 	@sudo docker build --file build/Dockerfile --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) . --build-arg TARGETARCH=amd64
+
+.PHONY: push-amd64
+push-amd64:
+	@echo "--------------------------------------------"
+	@echo "--> Push chaos-scheduler amd-64 docker image"
+	@echo "--------------------------------------------"
+	@sudo docker push $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG)
