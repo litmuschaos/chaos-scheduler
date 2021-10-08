@@ -1,5 +1,13 @@
-
 # Litmus chaos-scheduler for injecting chaos experiments on Kubernetes
+
+[![Slack Channel](https://img.shields.io/badge/Slack-Join-purple)](https://slack.litmuschaos.io)
+![GitHub Workflow](https://github.com/litmuschaos/chaos-scheduler/actions/workflows/push.yml/badge.svg?branch=master)
+[![Docker Pulls](https://img.shields.io/docker/pulls/litmuschaos/chaos-scheduler.svg)](https://hub.docker.com/r/litmuschaos/chaos-scheduler)
+[![GitHub issues](https://img.shields.io/github/issues/litmuschaos/chaos-scheduler)](https://github.com/litmuschaos/chaos-scheduler/issues)
+[![Twitter Follow](https://img.shields.io/twitter/follow/litmuschaos?style=social)](https://twitter.com/LitmusChaos)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/5299/badge)](https://bestpractices.coreinfrastructure.org/projects/5299)
+[![Go Report Card](https://goreportcard.com/badge/github.com/litmuschaos/chaos-scheduler)](https://goreportcard.com/report/github.com/litmuschaos/chaos-scheduler)
+[![YouTube Channel](https://img.shields.io/badge/YouTube-Subscribe-red)](https://www.youtube.com/channel/UCa57PMqmz_j0wnteRa9nCaw)
   
 Litmus chaos scheduler is used by Kubernetes application developers and SREs to inject chaos into the applications 
 and Kubernetes infrastructure periodically based on the specified schedule. Perform the following steps to use the chaos scheduler: 
@@ -78,22 +86,22 @@ spec:
 
 ## What is a chaos engine?
 
-Refer 
-- https://github.com/litmuschaos/chaos-operator
-- https://docs.litmuschaos.io/docs/getstarted/
+The ChaosEngine is the main user-facing chaos custom resource with a namespace scope and is designed to hold information around how the chaos experiments are executed. It connects an application instance with one or more chaos experiments,
+
+For more details [refer](https://v1-docs.litmuschaos.io/docs/chaosengine/) 
 
 ## What is a litmus chaos chart and how can I use it?
 
-Refer 
-- https://github.com/litmuschaos/chaos-charts
-- https://hub.litmuschaos.io/
+Litmus chaos chart is the heart of litmus and contains the low-level execution information. They serve as off-the-shelf templates that one needs to "pull" (install on the cluster) before including them as part of a chaos run against any target applications (the binding being defined in the ChaosEngine).
+
+For more details refer [litmus docs](https://v1-docs.litmuschaos.io/docs/chaosexperiment/) and [hub](https://hub.litmuschaos.io/).
 
 ## What are the steps to get started?
 
 - Install Operator Components and RBAC and CRDs
 
   ```bash
-  kubectl apply -f https://litmuschaos.github.io/pages/litmus-operator-latest.yaml
+  kubectl apply -f https://litmuschaos.github.io/litmus/litmus-operator-latest.yaml
   ```
 
 - Install Scheduler and it's CRDs
@@ -107,13 +115,13 @@ Refer
 - Create the pod delete Chaos Experiment in default namespace
 
   ```
-  kubectl apply -f https://raw.githubusercontent.com/litmuschaos/chaos-charts/1.4.0/charts/generic/pod-delete/experiment.yaml
+  kubectl apply -f https://raw.githubusercontent.com/litmuschaos/chaos-charts/master/charts/generic/pod-delete/experiment.yaml
   ```
 
 - Create the RBAC for execute the pod-delete chaos
 
   ```bash
-  kubectl apply -f https://raw.githubusercontent.com/litmuschaos/chaos-charts/1.4.0/charts/generic/pod-delete/rbac.yaml
+  kubectl apply -f https://raw.githubusercontent.com/litmuschaos/chaos-charts/master/charts/generic/pod-delete/rbac.yaml
   ```
 
 - Annotate your application to enable chaos. For ex:
@@ -233,9 +241,10 @@ Refer
 
 ## Where are the docs?
 
-They are available at [litmus docs](https://docs.litmuschaos.io)
+They are available at [litmus docs](https://docs.litmuschaos.io) and [experiment docs](https://litmuschaos.github.io/litmus/experiments/concepts/chaos-resources/contents/)
 
 ## How do I contribute?
 
-The Chaos scheduler is in _alpha_ stage and needs all the help you can provide! Please contribute by raising issues, 
-improving the documentation, contributing to the core framework and tooling, etc.
+You can contribute by raising issues, improving the documentation, contributing to the core framework and tooling, etc.
+
+Head over to the [Contribution guide](CONTRIBUTING.md)
