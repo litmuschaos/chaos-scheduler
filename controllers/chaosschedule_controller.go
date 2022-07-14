@@ -1,103 +1,70 @@
-package chaosscheduler
+/*
+Copyright 2019 LitmusChaos Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controllers
 
 import (
 	"context"
 	"fmt"
-	"time"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/go-logr/logr"
+	"github.com/litmuschaos/chaos-operator/api/litmuschaos/v1alpha1"
+	schedulerV1 "github.com/litmuschaos/chaos-scheduler/api/litmuschaos/v1alpha1"
+	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+	"time"
 
-	operatorV1 "github.com/litmuschaos/chaos-operator/pkg/apis/litmuschaos/v1alpha1"
-	schedulerV1 "github.com/litmuschaos/chaos-scheduler/pkg/apis/litmuschaos/v1alpha1"
-	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	litmuschaosiov1alpha1 "github.com/litmuschaos/chaos-scheduler/api/litmuschaos/v1alpha1"
 )
 
-var _ reconcile.Reconciler = &ReconcileChaosScheduler{}
-
-// ReconcileChaosScheduler reconciles a ChaosScheduler object
-type ReconcileChaosScheduler struct {
+// ChaosScheduleReconciler reconciles a ChaosSchedule object
+type ChaosScheduleReconciler struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client.Client
+	Scheme *runtime.Scheme
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
-	recorder record.EventRecorder
+	Recorder record.EventRecorder
 }
 
 // reconcileScheduler contains details of reconcileScheduler
 type reconcileScheduler struct {
-	r         *ReconcileChaosScheduler
+	r         *ChaosScheduleReconciler
 	reqLogger logr.Logger
 }
 
-// Add creates a new ChaosScheduler Controller and adds it to the Manager. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
-}
-
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileChaosScheduler{client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetEventRecorderFor("chaos-scheduler")}
-}
-
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
-	// Create a new controller
-	c, err := controller.New("chaosscheduler-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	err = watchChaosResources(mgr.GetClient(), c)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// watchSecondaryResources watch's for changes in chaos resources
-func watchChaosResources(clientSet client.Client, c controller.Controller) error {
-	// Watch for Primary Chaos Resource
-	err := c.Watch(&source.Kind{Type: &schedulerV1.ChaosSchedule{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	err = c.Watch(&source.Kind{Type: &operatorV1.ChaosEngine{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &schedulerV1.ChaosSchedule{},
-		IsController: true,
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// blank assignment to verify that ReconcileChaosScheduler implements reconcile.Reconciler
-var _ reconcile.Reconciler = &ReconcileChaosScheduler{}
+//+kubebuilder:rbac:groups=litmuschaos.io,resources=chaosschedules,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=litmuschaos.io,resources=chaosschedules/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=litmuschaos.io,resources=chaosschedules/finalizers,verbs=update
 
 /*Reconcile reads that state of the cluster for a ChaosScheduler object and makes changes based on the state read
 and what is in the ChaosScheduler.Spec
 Note:
 The Controller will requeue the Request to be processed again if the returned error is non-nil or
 Result.Requeue is true, otherwise upon completion it will remove the work from the queue.*/
-func (r *ReconcileChaosScheduler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *ChaosScheduleReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
+
 	reqLogger := chaosTypes.Log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling ChaosScheduler")
 
@@ -137,12 +104,12 @@ func (r *ReconcileChaosScheduler) Reconcile(request reconcile.Request) (reconcil
 func (schedulerReconcile *reconcileScheduler) reconcileForHalt(cs *chaosTypes.SchedulerInfo, request reconcile.Request) (reconcile.Result, error) {
 
 	cs.Instance.Status.Schedule.Status = schedulerV1.StatusHalted
-	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "ScheduleHalted", "Cannot update status as halted")
+	if errUpdate := schedulerReconcile.r.Client.Update(context.TODO(), cs.Instance); errUpdate != nil {
+		schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "ScheduleHalted", "Cannot update status as halted")
 		schedulerReconcile.reqLogger.Error(errUpdate, "error updating status")
 		return reconcile.Result{}, errUpdate
 	}
-	schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "ScheduleHalted", "Schedule halted successfully")
+	schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "ScheduleHalted", "Schedule halted successfully")
 	return reconcile.Result{}, nil
 }
 func (schedulerReconcile *reconcileScheduler) reconcileForComplete(cs *chaosTypes.SchedulerInfo, request reconcile.Request) (reconcile.Result, error) {
@@ -158,11 +125,11 @@ func (schedulerReconcile *reconcileScheduler) reconcileForComplete(cs *chaosType
 	opts := client.UpdateOptions{}
 	cs.Instance.Status.Schedule.Status = schedulerV1.StatusCompleted
 	cs.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
-	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance, &opts); err != nil {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "ScheduleCompleted", "Cannot update status as completed")
+	if err := schedulerReconcile.r.Client.Update(context.TODO(), cs.Instance, &opts); err != nil {
+		schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "ScheduleCompleted", "Cannot update status as completed")
 		return reconcile.Result{}, fmt.Errorf("unable to update chaosSchedule for status completed, due to error: %v", err)
 	}
-	schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "ScheduleCompleted", "Schedule completed successfully")
+	schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "ScheduleCompleted", "Schedule completed successfully")
 	return reconcile.Result{}, nil
 }
 
@@ -181,9 +148,9 @@ func checkScheduleStatus(cs *chaosTypes.SchedulerInfo, status schedulerV1.ChaosS
 }
 
 // Fetch the ChaosScheduler instance
-func (r *ReconcileChaosScheduler) getChaosSchedulerInstance(request reconcile.Request) (*chaosTypes.SchedulerInfo, error) {
+func (r *ChaosScheduleReconciler) getChaosSchedulerInstance(request reconcile.Request) (*chaosTypes.SchedulerInfo, error) {
 	instance := &schedulerV1.ChaosSchedule{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	err := r.Client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		// Error reading the object - requeue the request.
 		return nil, err
@@ -192,4 +159,12 @@ func (r *ReconcileChaosScheduler) getChaosSchedulerInstance(request reconcile.Re
 		Instance: instance,
 	}
 	return scheduler, nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *ChaosScheduleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&litmuschaosiov1alpha1.ChaosSchedule{}).
+		Owns(&v1alpha1.ChaosEngine{}).
+		Complete(r)
 }

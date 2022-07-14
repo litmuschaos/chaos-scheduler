@@ -1,16 +1,16 @@
-package chaosscheduler
+package controllers
 
 import (
 	"errors"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ref "k8s.io/client-go/tools/reference"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	operatorV1 "github.com/litmuschaos/chaos-operator/pkg/apis/litmuschaos/v1alpha1"
-	schedulerV1 "github.com/litmuschaos/chaos-scheduler/pkg/apis/litmuschaos/v1alpha1"
-	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
+	operatorV1 "github.com/litmuschaos/chaos-operator/api/litmuschaos/v1alpha1"
+	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -65,12 +65,12 @@ func schedule(schedulerReconcile *reconcileScheduler, scheduler *chaosTypes.Sche
 	return reconcile.Result{}, errors.New("ScheduleType should be one of ('now', 'once', 'repeat')")
 }
 
-func (r *ReconcileChaosScheduler) getRef(object runtime.Object) (*corev1.ObjectReference, error) {
-	return ref.GetReference(r.scheme, object)
+func (r *ChaosScheduleReconciler) getRef(object runtime.Object) (*corev1.ObjectReference, error) {
+	return ref.GetReference(r.Scheme, object)
 }
 
 // getEngineFromTemplate makes an Engine from a Schedule
-func getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) *operatorV1.ChaosEngine {
+func (r *ChaosScheduleReconciler) getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) (*operatorV1.ChaosEngine, error) {
 
 	labels := map[string]string{
 		"app":      "chaos-engine",
@@ -82,9 +82,6 @@ func getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) *operatorV1.ChaosEngine
 
 	engine := &operatorV1.ChaosEngine{}
 
-	ownerReferences := make([]metav1.OwnerReference, 0)
-	ownerReferences = append(ownerReferences, *metav1.NewControllerRef(cs.Instance, schedulerV1.SchemeGroupVersion.WithKind("ChaosSchedule")))
-	engine.SetOwnerReferences(ownerReferences)
 	engine.SetLabels(labels)
 
 	engine.Name = cs.Instance.Name
@@ -93,6 +90,9 @@ func getEngineFromTemplate(cs *chaosTypes.SchedulerInfo) *operatorV1.ChaosEngine
 	engine.Annotations = cs.Instance.Annotations
 	engine.Spec = cs.Instance.Spec.EngineTemplateSpec
 	engine.Spec.EngineState = operatorV1.EngineStateActive
-
-	return engine
+	
+	if err := controllerutil.SetControllerReference(cs.Instance, engine, r.Scheme); err != nil {
+		return nil, err
+	}
+	return engine, nil
 }

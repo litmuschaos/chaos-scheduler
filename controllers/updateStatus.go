@@ -1,4 +1,4 @@
-package chaosscheduler
+package controllers
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	operatorV1 "github.com/litmuschaos/chaos-operator/pkg/apis/litmuschaos/v1alpha1"
-	schedulerV1 "github.com/litmuschaos/chaos-scheduler/pkg/apis/litmuschaos/v1alpha1"
-	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
+	operatorV1 "github.com/litmuschaos/chaos-operator/api/litmuschaos/v1alpha1"
+	schedulerV1 "github.com/litmuschaos/chaos-scheduler/api/litmuschaos/v1alpha1"
+	chaosTypes "github.com/litmuschaos/chaos-scheduler/pkg/types"
 	"github.com/litmuschaos/litmus-go/pkg/utils/retry"
 )
 
-func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInfo) error {
+func (r *ChaosScheduleReconciler) updateActiveStatus(cs *chaosTypes.SchedulerInfo) error {
 	optsList := []client.ListOption{
 		client.InNamespace(cs.Instance.Namespace),
 		client.MatchingLabels{
@@ -26,7 +26,7 @@ func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInf
 	}
 
 	var engineList operatorV1.ChaosEngineList
-	if errList := r.client.List(context.TODO(), &engineList, optsList...); errList != nil {
+	if errList := r.Client.List(context.TODO(), &engineList, optsList...); errList != nil {
 		return errList
 	}
 
@@ -37,7 +37,7 @@ func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInf
 
 		if found && IsEngineFinished(&j) {
 			deleteFromActiveList(cs, j.ObjectMeta.UID)
-			r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SawCompletedEngine", "Saw completed engine: %s, status: %v", j.Name, operatorV1.EngineStatusCompleted)
+			r.Recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SawCompletedEngine", "Saw completed engine: %s, status: %v", j.Name, operatorV1.EngineStatusCompleted)
 		}
 	}
 
@@ -46,7 +46,7 @@ func (r *ReconcileChaosScheduler) updateActiveStatus(cs *chaosTypes.SchedulerInf
 	// engine running.
 	for _, j := range cs.Instance.Status.Active {
 		if found := childrenJobs[j.UID]; !found {
-			r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "MissingEngine", "Active engine went missing: %v", j.Name)
+			r.Recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "MissingEngine", "Active engine went missing: %v", j.Name)
 			deleteFromActiveList(cs, j.UID)
 			cs.Instance.Status.LastScheduleCompletionTime = &metav1.Time{Time: time.Now()}
 		}
@@ -88,7 +88,7 @@ func (schedulerReconcile *reconcileScheduler) UpdateSchedulerStatus(cs *chaosTyp
 	cs.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
 	cs.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
 	cs.Instance.Status.Active = nil
-	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); k8serrors.IsConflict(err) {
+	if err := schedulerReconcile.r.Client.Update(context.TODO(), cs.Instance); k8serrors.IsConflict(err) {
 		return retry.
 			Times(uint(5)).
 			Wait(1 * time.Second).
@@ -101,7 +101,7 @@ func (schedulerReconcile *reconcileScheduler) UpdateSchedulerStatus(cs *chaosTyp
 				scheduler.Instance.Spec.ScheduleState = schedulerV1.StateCompleted
 				scheduler.Instance.Status.Schedule.EndTime = &metav1.Time{Time: time.Now()}
 				scheduler.Instance.Status.Active = nil
-				return schedulerReconcile.r.client.Update(context.TODO(), scheduler.Instance)
+				return schedulerReconcile.r.Client.Update(context.TODO(), scheduler.Instance)
 			})
 	}
 	time.Sleep(1 * time.Second)

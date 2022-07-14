@@ -16,9 +16,9 @@
 package types
 
 import (
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	litmuschaosv1alpha1 "github.com/litmuschaos/chaos-scheduler/pkg/apis/litmuschaos/v1alpha1"
+	litmuschaosv1alpha1 "github.com/litmuschaos/chaos-scheduler/api/litmuschaos/v1alpha1"
 )
 
 var (
