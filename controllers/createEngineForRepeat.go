@@ -1,4 +1,4 @@
-package chaosscheduler
+package controllers
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	schedulerV1 "github.com/litmuschaos/chaos-scheduler/pkg/apis/litmuschaos/v1alpha1"
-	"github.com/litmuschaos/chaos-scheduler/pkg/controller/types"
+	schedulerV1 "github.com/litmuschaos/chaos-scheduler/api/litmuschaos/v1alpha1"
+	"github.com/litmuschaos/chaos-scheduler/pkg/types"
 )
 
 func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *types.SchedulerInfo, request reconcile.Request) (reconcile.Result, error) {
@@ -24,7 +24,7 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *types.Sched
 		return reconcile.Result{}, err
 	}
 
-	if errUpdate := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); errUpdate != nil {
+	if errUpdate := schedulerReconcile.r.Client.Update(context.TODO(), cs.Instance); errUpdate != nil {
 		schedulerReconcile.reqLogger.Error(errUpdate, "error updating status")
 		return reconcile.Result{}, errUpdate
 	}
@@ -57,7 +57,7 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *types.Sched
 
 	scheduledTime, errNew := schedulerReconcile.getRecentUnmetScheduleTime(cs, cronString)
 	if errNew != nil {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedNeedsStart", "Cannot determine if engine needs to be started: %v", errNew)
+		schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedNeedsStart", "Cannot determine if engine needs to be started: %v", errNew)
 		return reconcile.Result{}, errNew
 	}
 
@@ -76,7 +76,7 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *types.Sched
 	// For now taking "Forbid" as by default
 	if len(cs.Instance.Status.Active) > 0 {
 		schedulerReconcile.reqLogger.Info("The next scheduled is delayed as the older chaosengine is not completed yet")
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "MissEngine", "Missed scheduled time to start an engine because of an active engine at: %s", scheduledTime.Format(time.RFC1123Z))
+		schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "MissEngine", "Missed scheduled time to start an engine because of an active engine at: %s", scheduledTime.Format(time.RFC1123Z))
 		return reconcile.Result{RequeueAfter: wait}, nil
 	}
 
@@ -89,15 +89,19 @@ func (schedulerReconcile *reconcileScheduler) createEngineRepeat(cs *types.Sched
 
 func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *types.SchedulerInfo, scheduledTime time.Time) (reconcile.Result, error) {
 
-	engineReq := getEngineFromTemplate(cs)
+	engineReq, err := schedulerReconcile.r.getEngineFromTemplate(cs)
+	if err != nil {
+		schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedCreate", "Failed to add controller references: %v", err)
+		return reconcile.Result{}, err
+	}
 	engineReq.Name = fmt.Sprintf("%s-%d", cs.Instance.Name, getTimeHash(scheduledTime))
 
-	errCreate := schedulerReconcile.r.client.Create(context.TODO(), engineReq)
+	errCreate := schedulerReconcile.r.Client.Create(context.TODO(), engineReq)
 	if errCreate != nil {
-		schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedCreate", "Error creating engine: %v", errCreate)
+		schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeWarning, "FailedCreate", "Error creating engine: %v", errCreate)
 		return reconcile.Result{}, errCreate
 	}
-	schedulerReconcile.r.recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulCreate", "Created engine %v", engineReq.Name)
+	schedulerReconcile.r.Recorder.Eventf(cs.Instance, corev1.EventTypeNormal, "SuccessfulCreate", "Created engine %v", engineReq.Name)
 
 	// ------------------------------------------------------------------ //
 
@@ -130,7 +134,7 @@ func (schedulerReconcile *reconcileScheduler) createNewEngine(cs *types.Schedule
 	}
 	cs.Instance.Status.Schedule.StartTime = startTime
 
-	if err := schedulerReconcile.r.client.Update(context.TODO(), cs.Instance); err != nil {
+	if err := schedulerReconcile.r.Client.Update(context.TODO(), cs.Instance); err != nil {
 		return reconcile.Result{}, err
 	}
 	time.Sleep(1 * time.Second)
