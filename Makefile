@@ -70,14 +70,14 @@ build-chaos-scheduler:
 	@echo "------------------"
 	@echo "--> Build chaos-scheduler docker image" 
 	@echo "------------------"
-	@docker buildx build --file build/Dockerfile --progress plane --no-cache --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@docker buildx build --file build/Dockerfile --progress plain --no-cache --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 .PHONY: push-chaos-scheduler
 push-chaos-scheduler:
 	@echo "------------------------------"
 	@echo "--> Pushing image" 
 	@echo "------------------------------"
-	@docker buildx build --file build/Dockerfile --progress plane --no-cache --push --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@docker buildx build --file build/Dockerfile --progress plain --no-cache --push --platform linux/arm64,linux/amd64 --tag $(DOCKER_REPO)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 .PHONY: build-amd64
 build-amd64:
