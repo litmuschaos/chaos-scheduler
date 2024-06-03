@@ -11,7 +11,7 @@ jobs:
       # Install golang
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.16
+          go-version: 1.20.0
 
       # Checkout to the latest commit
       # On specific directory/path
@@ -35,7 +35,7 @@ jobs:
       - name: Build an image from Dockerfile
         run: |
           docker build -f build/Dockerfile -t docker.io/litmuschaos/chaos-scheduler:${{ github.sha }} . --build-arg TARGETPLATFORM=linux/amd64
-      
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -44,7 +44,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'          
+          severity: 'CRITICAL,HIGH'
 
   image-build:
     runs-on: ubuntu-latest
