@@ -1,6 +1,6 @@
 # Multi-stage docker build
 # Build stage
-FROM golang:1.16 AS builder
+FROM golang:1.20 AS builder
 
 LABEL maintainer="LitmusChaos"
 
@@ -23,7 +23,7 @@ FROM litmuschaos/infra-alpine
 
 LABEL maintainer="LitmusChaos"
 
-ENV SCHEDULER=/usr/local/bin/chaos-scheduler 
+ENV SCHEDULER=/usr/local/bin/chaos-scheduler
 COPY --from=builder /output/chaos-scheduler ${SCHEDULER}
 
 ENTRYPOINT ["/usr/local/bin/chaos-scheduler"]
